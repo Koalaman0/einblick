@@ -1,4 +1,4 @@
-package com.hanlim.wms.domain.customer;
+package com.einblick.backend.domain.customer;
 
 import jakarta.persistence.*;
 import lombok.*;

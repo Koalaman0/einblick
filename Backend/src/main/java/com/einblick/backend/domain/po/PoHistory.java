@@ -1,6 +1,6 @@
-package com.hanlim.wms.domain.po;
+package com.einblick.backend.domain.po;
 
-import com.hanlim.wms.domain.user.User;
+import com.einblick.backend.domain.user.User;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -36,8 +36,8 @@ public class PoHistory {
     @Column(name = "NEW_VALUE", length = 200)
     private String newValue;
 
-    @Column(name = "COMMENT", length = 500)
-    private String comment;
+    @Column(name = "COMMENT_TEXT", length = 500)
+    private String comment_text;
 
     @Column(name = "CREATED_AT", nullable = false, updatable = false)
     private LocalDateTime createdAt;

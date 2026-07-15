@@ -1,7 +1,7 @@
-package com.hanlim.wms.domain.po;
+package com.einblick.backend.domain.po;
 
-import com.hanlim.wms.domain.customer.Customer;
-import com.hanlim.wms.domain.program.Program;
+import com.einblick.backend.domain.customer.Customer;
+import com.einblick.backend.domain.program.Program;
 import jakarta.persistence.*;
 import lombok.*;
 

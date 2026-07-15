@@ -1,4 +1,4 @@
-package com.hanlim.wms.domain.assort;
+package com.einblick.backend.domain.assort;
 
 import jakarta.persistence.*;
 import lombok.*;

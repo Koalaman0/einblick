@@ -1,4 +1,4 @@
-package com.einblick.einblick;
+package com.einblick.backend;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

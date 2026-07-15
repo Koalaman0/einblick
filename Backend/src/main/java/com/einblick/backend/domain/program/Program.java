@@ -1,4 +1,4 @@
-package com.hanlim.wms.domain.program;
+package com.einblick.backend.domain.program;
 
 import jakarta.persistence.*;
 import lombok.*;
