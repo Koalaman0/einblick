@@ -1,17 +1,6 @@
-import type { POItem, KanbanData } from "@/types";
+import type { KanbanData } from "@/types";
 
 // ── Mock Data ─────────────────────────────────────────────
-export const poItems: POItem[] = [
-  { id: "PO-2024-0823", style: "NK-JKT-2401", brand: "Nike", customer: "나이키코리아(주)", season: "2024FW", status: "진행중", deadline: "2024-09-15", shippingMethod: "AIR", quantity: 1200, amount: "₩48,000,000", factory: "하나봉제(주)", country: "한국" },
-  { id: "PO-2024-0824", style: "AD-PNT-2403", brand: "Adidas", customer: "(주)아디다스코리아", season: "2024FW", status: "검토중", deadline: "2024-09-20", shippingMethod: "BOAT", quantity: 800, amount: "₩24,000,000", factory: "동방어패럴", country: "중국" },
-  { id: "PO-2024-0825", style: "UA-SET-2401", brand: "Under Armour", customer: "UA코리아", season: "2025SS", status: "완료", deadline: "2024-08-30", shippingMethod: "AIR", quantity: 500, amount: "₩35,000,000", factory: "삼성섬유(주)", country: "베트남" },
-  { id: "PO-2024-0826", style: "NB-JKT-2402", brand: "New Balance", customer: "(주)NB코리아", season: "2024FW", status: "지연", deadline: "2024-09-01", shippingMethod: "SPLIT", quantity: 2000, amount: "₩92,000,000", factory: "글로벌섬유", country: "방글라데시" },
-  { id: "PO-2024-0827", style: "FL-PNT-2401", brand: "FILA", customer: "휠라코리아(주)", season: "2024FW", status: "진행중", deadline: "2024-10-10", shippingMethod: "BOAT", quantity: 3000, amount: "₩75,000,000", factory: "한림봉제", country: "중국" },
-  { id: "PO-2024-0828", style: "NK-TOP-2405", brand: "Nike", customer: "나이키코리아(주)", season: "2025SS", status: "대기", deadline: "2024-11-15", shippingMethod: "AIR", quantity: 600, amount: "₩18,000,000", factory: "하나봉제(주)", country: "한국" },
-  { id: "PO-2024-0829", style: "AD-JKT-2406", brand: "Adidas", customer: "(주)아디다스코리아", season: "2025SS", status: "진행중", deadline: "2024-10-25", shippingMethod: "BOAT", quantity: 1500, amount: "₩67,500,000", factory: "동방어패럴", country: "인도네시아" },
-  { id: "PO-2024-0830", style: "UA-JKT-2402", brand: "Under Armour", customer: "UA코리아", season: "2024FW", status: "검토중", deadline: "2024-09-30", shippingMethod: "AIR", quantity: 900, amount: "₩54,000,000", factory: "삼성섬유(주)", country: "캄보디아" },
-];
-
 export const initKanban: KanbanData = {
   SMS: [
     { id: 1, style: "NK-JKT-2401", team: "생산1팀", assignee: "김민준", deadline: "2024-07-15", status: "검토중", comments: 3, sent: false, brand: "Nike", priority: "높음" },
