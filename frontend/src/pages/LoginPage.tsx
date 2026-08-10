@@ -36,7 +36,7 @@ export function LoginPage() {
           <div className="w-10 h-10 bg-[#2563EB] rounded-xl flex items-center justify-center mb-3">
             <Zap className="w-5 h-5 text-white" />
           </div>
-          <div className="text-[15px] font-semibold text-[#0F172A]">한림 OUTERSTUFF</div>
+          <div className="text-[15px] font-semibold text-[#0F172A]">einblick</div>
           <div className="text-[11px] text-[#64748B] mt-0.5">업무관리시스템 v1.0</div>
         </div>
 

@@ -17,7 +17,7 @@ export function Header({ page, dark, onToggleDark, notifOpen, onToggleNotif }: {
   return (
     <header className="h-12 bg-white border-b border-[#E2E8F0] flex items-center px-5 gap-3 shrink-0 z-10">
       <div className="flex items-center gap-1.5 text-[12px] flex-1 min-w-0">
-        <span className="text-[#CBD5E1]">한림 OUTERSTUFF</span>
+        <span className="text-[#CBD5E1]">einblick</span>
         <ChevronRight className="w-3.5 h-3.5 text-[#CBD5E1] shrink-0" />
         <span className="text-[#0F172A] font-medium truncate">{breadcrumbMap[page]}</span>
       </div>
