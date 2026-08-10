@@ -1,9 +1,4 @@
 spring:
-  datasource:
-    url: jdbc:postgresql://${PGHOST:localhost}:${PGPORT:5432}/${PGDATABASE:einblick}
-    username: ${PGUSER:einblick}
-    password: ${PGPASSWORD:einblick1234}
-    driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
       ddl-auto: validate      # DDL은 직접 관리, JPA는 검증만
