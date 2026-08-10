@@ -1,21 +1,55 @@
+import { useEffect, useState } from "react";
 import {
-  FileText, ArrowLeftRight, Truck, Package2, CreditCard, ArrowUp, ArrowDown,
+  FileText, ArrowLeftRight, Truck, Package2, CreditCard,
 } from "lucide-react";
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from "recharts";
 import { cn } from "@/lib/utils";
-import { productionChart, shippingChart, brandChart, recentActivities, notifications } from "@/data/mockData";
+import { productionChart, shippingChart, recentActivities, notifications } from "@/data/mockData";
+import { API_BASE_URL } from "@/lib/apiConfig";
+import type { PurchaseOrderSummary } from "@/types";
 
-// ── Dashboard ──────────────────────────────────────────────
+const BRAND_COLORS = ["#2563EB", "#7C3AED", "#059669", "#D97706", "#DC2626", "#0EA5E9", "#DB2777"];
+
+interface ReconciliationStatus {
+  status: string;
+}
+
 export function DashboardPage() {
+  const [pos, setPos] = useState<PurchaseOrderSummary[]>([]);
+  const [reconResults, setReconResults] = useState<ReconciliationStatus[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    Promise.all([
+      fetch(`${API_BASE_URL}/api/po`).then((r) => (r.ok ? r.json() : [])),
+      fetch(`${API_BASE_URL}/api/reconciliation`).then((r) => (r.ok ? r.json() : [])),
+    ])
+      .then(([poData, reconData]) => {
+        setPos(poData);
+        setReconResults(reconData);
+      })
+      .finally(() => setLoaded(true));
+  }, []);
+
+  const activePoCount = pos.filter((p) => p.status !== "CLOSED").length;
+  const pendingReconCount = reconResults.filter((r) => r.status !== "OK").length;
+
+  const brandChart = Object.entries(
+    pos.reduce<Record<string, number>>((acc, p) => {
+      acc[p.brand] = (acc[p.brand] ?? 0) + 1;
+      return acc;
+    }, {})
+  ).map(([name, value], i) => ({ name, value, color: BRAND_COLORS[i % BRAND_COLORS.length] }));
+
   const stats = [
-    { label: "진행 중 PO", value: "47건", delta: "+3", up: true, bg: "bg-blue-50", fg: "text-blue-600", icon: FileText },
-    { label: "자동 대사 대기", value: "12건", delta: "+5", up: true, bg: "bg-red-50", fg: "text-red-500", icon: ArrowLeftRight },
-    { label: "출고 예정", value: "8건", delta: "-2", up: false, bg: "bg-teal-50", fg: "text-teal-600", icon: Truck },
-    { label: "샘플 진행", value: "23건", delta: "+1", up: true, bg: "bg-violet-50", fg: "text-violet-600", icon: Package2 },
-    { label: "결제 대기", value: "5건", delta: "0", up: false, bg: "bg-amber-50", fg: "text-amber-600", icon: CreditCard },
+    { label: "진행 중 PO", value: loaded ? `${activePoCount}건` : "-", ready: true, bg: "bg-blue-50", fg: "text-blue-600", icon: FileText },
+    { label: "자동 대사 대기", value: loaded ? `${pendingReconCount}건` : "-", ready: true, bg: "bg-red-50", fg: "text-red-500", icon: ArrowLeftRight },
+    { label: "출고 예정", value: "-", ready: false, bg: "bg-teal-50", fg: "text-teal-600", icon: Truck },
+    { label: "샘플 진행", value: "-", ready: false, bg: "bg-violet-50", fg: "text-violet-600", icon: Package2 },
+    { label: "결제 대기", value: "-", ready: false, bg: "bg-amber-50", fg: "text-amber-600", icon: CreditCard },
   ];
 
   return (
@@ -29,10 +63,7 @@ export function DashboardPage() {
                 <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center", s.bg, s.fg)}>
                   <Icon className="w-4 h-4" />
                 </div>
-                <span className={cn("text-[11px] font-medium flex items-center gap-0.5", s.delta === "0" ? "text-[#94A3B8]" : s.up && s.label !== "자동 대사 대기" ? "text-green-600" : s.up ? "text-red-500" : "text-green-600")}>
-                  {s.delta !== "0" && (s.up ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
-                  {s.delta !== "0" ? s.delta : "—"}
-                </span>
+                {!s.ready && <span className="text-[10px] font-medium text-[#94A3B8] bg-[#F1F5F9] px-1.5 py-0.5 rounded-full">준비 중</span>}
               </div>
               <div className="text-[22px] font-bold text-[#0F172A]">{s.value}</div>
               <div className="text-[11px] text-[#64748B] mt-0.5">{s.label}</div>
@@ -46,7 +77,7 @@ export function DashboardPage() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-[13px] font-semibold text-[#0F172A]">생산 진행률</h3>
-              <p className="text-[11px] text-[#64748B] mt-0.5">월별 진행 / 완료 / 지연 현황 (2024)</p>
+              <p className="text-[11px] text-[#64748B] mt-0.5">월별 진행 / 완료 / 지연 현황 · 샘플 데이터 (이력 집계 기능 준비 중)</p>
             </div>
             <select className="text-[11px] border border-[#E2E8F0] rounded-lg px-2 py-1.5 bg-white text-[#64748B] focus:outline-none focus:border-[#2563EB]">
               <option>2024년</option><option>2023년</option>
@@ -79,34 +110,40 @@ export function DashboardPage() {
         <div className="bg-white rounded-xl border border-[#E2E8F0] p-5">
           <div className="mb-3">
             <h3 className="text-[13px] font-semibold text-[#0F172A]">브랜드별 PO 현황</h3>
-            <p className="text-[11px] text-[#64748B] mt-0.5">2024년 7월 기준</p>
+            <p className="text-[11px] text-[#64748B] mt-0.5">등록된 전체 PO 기준</p>
           </div>
-          <ResponsiveContainer width="100%" height={140}>
-            <PieChart>
-              <Pie data={brandChart} cx="50%" cy="50%" innerRadius={38} outerRadius={62} paddingAngle={3} dataKey="value">
-                {brandChart.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-              </Pie>
-              <Tooltip formatter={(v) => `${v}건`} contentStyle={{ borderRadius: "10px", border: "1px solid #E2E8F0", fontSize: "11px" }} />
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="space-y-1.5 mt-1">
-            {brandChart.map((b) => (
-              <div key={b.name} className="flex items-center justify-between text-[11px]">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: b.color }} />
-                  <span className="text-[#64748B]">{b.name}</span>
-                </div>
-                <span className="font-semibold text-[#0F172A]">{b.value}건</span>
+          {brandChart.length === 0 ? (
+            <div className="h-[140px] flex items-center justify-center text-[11px] text-[#94A3B8]">등록된 PO가 없습니다.</div>
+          ) : (
+            <>
+              <ResponsiveContainer width="100%" height={140}>
+                <PieChart>
+                  <Pie data={brandChart} cx="50%" cy="50%" innerRadius={38} outerRadius={62} paddingAngle={3} dataKey="value">
+                    {brandChart.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                  </Pie>
+                  <Tooltip formatter={(v) => `${v}건`} contentStyle={{ borderRadius: "10px", border: "1px solid #E2E8F0", fontSize: "11px" }} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="space-y-1.5 mt-1">
+                {brandChart.map((b) => (
+                  <div key={b.name} className="flex items-center justify-between text-[11px]">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: b.color }} />
+                      <span className="text-[#64748B]">{b.name}</span>
+                    </div>
+                    <span className="font-semibold text-[#0F172A]">{b.value}건</span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </>
+          )}
         </div>
       </div>
 
       <div className="grid grid-cols-3 gap-4">
         <div className="col-span-2 bg-white rounded-xl border border-[#E2E8F0] p-5">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-[13px] font-semibold text-[#0F172A]">최근 작업 내역</h3>
+            <h3 className="text-[13px] font-semibold text-[#0F172A]">최근 작업 내역 · 샘플 데이터 (활동 로그 준비 중)</h3>
             <button className="text-[11px] text-[#2563EB] hover:underline">전체 보기</button>
           </div>
           <div className="space-y-1">
@@ -130,8 +167,8 @@ export function DashboardPage() {
 
         <div className="bg-white rounded-xl border border-[#E2E8F0] p-5">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-[13px] font-semibold text-[#0F172A]">알림</h3>
-            <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full font-semibold">4건</span>
+            <h3 className="text-[13px] font-semibold text-[#0F172A]">알림 · 샘플 데이터</h3>
+            <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full font-semibold">{notifications.length}건</span>
           </div>
           <div className="space-y-2">
             {notifications.map((n) => (
@@ -148,7 +185,7 @@ export function DashboardPage() {
       <div className="bg-white rounded-xl border border-[#E2E8F0] p-5">
         <div className="mb-4">
           <h3 className="text-[13px] font-semibold text-[#0F172A]">출고 현황</h3>
-          <p className="text-[11px] text-[#64748B] mt-0.5">주차별 출고 방식 현황 (7월)</p>
+          <p className="text-[11px] text-[#64748B] mt-0.5">주차별 출고 방식 현황 · 샘플 데이터 (출고 이력 집계 기능 준비 중)</p>
         </div>
         <ResponsiveContainer width="100%" height={160}>
           <BarChart data={shippingChart} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>

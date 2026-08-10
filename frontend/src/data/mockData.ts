@@ -41,13 +41,6 @@ export const shippingChart = [
   { week: "7/3주", AIR: 3, BOAT: 10, SPLIT: 1 },
   { week: "7/4주", AIR: 8, BOAT: 6, SPLIT: 4 },
 ];
-export const brandChart = [
-  { name: "Nike", value: 35, color: "#2563EB" },
-  { name: "Adidas", value: 28, color: "#7C3AED" },
-  { name: "Under Armour", value: 18, color: "#059669" },
-  { name: "New Balance", value: 12, color: "#D97706" },
-  { name: "FILA", value: 7, color: "#DC2626" },
-];
 export const recentActivities = [
   { id: 1, type: "PO등록", content: "PO-2024-0830 신규 등록", user: "김민준", time: "5분 전", color: "bg-blue-500" },
   { id: 2, type: "샘플승인", content: "NK-JKT-2401 FIT 샘플 승인 완료", user: "이서연", time: "23분 전", color: "bg-violet-500" },
