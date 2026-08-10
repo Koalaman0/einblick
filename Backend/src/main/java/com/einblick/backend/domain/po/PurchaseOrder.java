@@ -82,6 +82,12 @@ public class PurchaseOrder {
         poLine.assignPurchaseOrder(this);
     }
 
+    public void registerShipment(LocalDate dlvyDate, TransportMethod transportMethod) {
+        this.dlvyDate = dlvyDate;
+        this.transportMethod = transportMethod;
+        this.status = Status.SHIPPED;
+    }
+
     public enum TransportMethod {
         AIR, BOAT, SPLIT, UNASSIGNED
     }
