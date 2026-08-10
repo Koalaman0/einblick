@@ -31,7 +31,7 @@ export function Sidebar({ current, onNavigate }: { current: Page; onNavigate: (p
             <Zap className="w-4 h-4 text-white" />
           </div>
           <div>
-            <div className="text-white text-[13px] font-semibold leading-tight">한림 OUTERSTUFF</div>
+            <div className="text-white text-[13px] font-semibold leading-tight">einblick</div>
             <div className="text-[#475569] text-[11px]">업무관리시스템 v1.0</div>
           </div>
         </div>
