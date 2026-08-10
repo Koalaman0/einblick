@@ -1,5 +1,6 @@
 package com.einblick.backend.domain.po;
 
+import com.einblick.backend.domain.program.Program;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
@@ -9,4 +10,5 @@ public interface PurchaseOrderRepository extends JpaRepository<PurchaseOrder, Lo
     Optional<PurchaseOrder> findByPoNumber(String poNumber);
     boolean existsByPoNumber(String poNumber);
     List<PurchaseOrder> findAllByOrderByCreatedAtDesc();
+    List<PurchaseOrder> findByProgram(Program program);
 }
