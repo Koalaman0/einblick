@@ -56,6 +56,12 @@ public class User {
         this.updatedAt = LocalDateTime.now();
     }
 
+    public void updateProfile(String name, Role role, String brandScope) {
+        this.name = name;
+        this.role = role;
+        this.brandScope = brandScope;
+    }
+
     public enum Role {
         STAFF, MANAGER, DIRECTOR, ADMIN
     }

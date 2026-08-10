@@ -33,12 +33,16 @@ public class AuthService {
             throw new IllegalArgumentException("이미 계정이 존재합니다. 관리자만 새 계정을 생성할 수 있습니다.");
         }
 
+        User.Role role = isFirstUser
+            ? User.Role.ADMIN
+            : (request.role() != null ? request.role() : User.Role.STAFF);
+
         User user = User.builder()
             .name(request.name())
             .loginId(request.loginId())
             .password(passwordEncoder.encode(request.password()))
             .brandScope(request.brandScope())
-            .role(isFirstUser ? User.Role.ADMIN : User.Role.STAFF)
+            .role(role)
             .build();
 
         User saved = userRepository.save(user);

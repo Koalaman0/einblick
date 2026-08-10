@@ -1,0 +1,10 @@
+package com.einblick.backend.domain.user;
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+
+public record UpdateUserRequest(
+    @NotBlank String name,
+    @NotNull User.Role role,
+    String brandScope
+) {}
