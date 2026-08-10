@@ -1,14 +1,14 @@
 spring:
   datasource:
-    url: jdbc:oracle:thin:@//localhost:1521/FREEPDB1
+    url: jdbc:postgresql://localhost:5432/einblick
     username: einblick
     password: einblick1234
-    driver-class-name: oracle.jdbc.OracleDriver
+    driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
       ddl-auto: validate      # DDL은 직접 관리, JPA는 검증만
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.OracleDialect
+        dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
     show-sql: true

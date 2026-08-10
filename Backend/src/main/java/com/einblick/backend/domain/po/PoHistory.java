@@ -36,8 +36,8 @@ public class PoHistory {
     @Column(name = "NEW_VALUE", length = 200)
     private String newValue;
 
-    @Column(name = "COMMENT_TEXT", length = 500)
-    private String comment_text;
+    @Column(name = "COMMENT", length = 500)
+    private String comment;
 
     @Column(name = "CREATED_AT", nullable = false, updatable = false)
     private LocalDateTime createdAt;
