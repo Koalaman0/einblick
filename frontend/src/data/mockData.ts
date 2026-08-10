@@ -1,31 +1,4 @@
-import type { KanbanData } from "@/types";
-
 // ── Mock Data ─────────────────────────────────────────────
-export const initKanban: KanbanData = {
-  SMS: [
-    { id: 1, style: "NK-JKT-2401", team: "생산1팀", assignee: "김민준", deadline: "2024-07-15", status: "검토중", comments: 3, sent: false, brand: "Nike", priority: "높음" },
-    { id: 2, style: "AD-PNT-2403", team: "생산2팀", assignee: "이서연", deadline: "2024-07-20", status: "대기", comments: 1, sent: true, brand: "Adidas", priority: "보통" },
-    { id: 3, style: "FL-SET-2401", team: "생산3팀", assignee: "박지훈", deadline: "2024-07-18", status: "검토중", comments: 0, sent: false, brand: "FILA", priority: "낮음" },
-  ],
-  FIT: [
-    { id: 4, style: "NK-TOP-2402", team: "생산1팀", assignee: "최수아", deadline: "2024-07-12", status: "진행중", comments: 5, sent: true, brand: "Nike", priority: "높음" },
-    { id: 5, style: "NB-JKT-2402", team: "생산2팀", assignee: "정우성", deadline: "2024-07-22", status: "진행중", comments: 2, sent: false, brand: "New Balance", priority: "보통" },
-  ],
-  APPROVAL: [
-    { id: 6, style: "UA-SET-2401", team: "생산3팀", assignee: "한지민", deadline: "2024-07-10", status: "승인대기", comments: 4, sent: true, brand: "Under Armour", priority: "높음" },
-    { id: 7, style: "AD-JKT-2401", team: "생산1팀", assignee: "오현우", deadline: "2024-07-25", status: "승인대기", comments: 0, sent: false, brand: "Adidas", priority: "보통" },
-    { id: 8, style: "FL-JKT-2402", team: "생산2팀", assignee: "임지영", deadline: "2024-07-28", status: "승인완료", comments: 2, sent: true, brand: "FILA", priority: "낮음" },
-  ],
-  TOP: [
-    { id: 9, style: "NK-PNT-2401", team: "생산1팀", assignee: "강동원", deadline: "2024-07-08", status: "완료", comments: 6, sent: true, brand: "Nike", priority: "높음" },
-    { id: 10, style: "UA-JKT-2402", team: "생산3팀", assignee: "김태희", deadline: "2024-07-14", status: "완료", comments: 1, sent: true, brand: "Under Armour", priority: "보통" },
-  ],
-  TEST: [
-    { id: 11, style: "NB-SET-2401", team: "생산2팀", assignee: "이민호", deadline: "2024-07-05", status: "테스트중", comments: 3, sent: true, brand: "New Balance", priority: "높음" },
-    { id: 12, style: "AD-TOP-2403", team: "생산1팀", assignee: "박신혜", deadline: "2024-07-30", status: "테스트중", comments: 0, sent: false, brand: "Adidas", priority: "낮음" },
-  ],
-};
-
 export const productionChart = [
   { month: "1월", 진행: 65, 완료: 30, 지연: 5 },
   { month: "2월", 진행: 72, 완료: 45, 지연: 8 },
