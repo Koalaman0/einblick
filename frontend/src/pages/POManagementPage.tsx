@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import type { PurchaseOrderSummary, ShippingMethod } from "@/types";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { ShippingBadge } from "@/components/common/ShippingBadge";
-import { API_BASE_URL } from "@/lib/apiConfig";
+import { apiFetch } from "@/lib/apiConfig";
 
 const STATUS_LABELS: Record<string, string> = {
   RECEIVED: "접수", IN_REVIEW: "검토중", RECONCILED: "대사완료",
@@ -37,7 +37,7 @@ export function POManagementPage() {
   const loadPurchaseOrders = () => {
     setLoading(true);
     setLoadError(null);
-    fetch(`${API_BASE_URL}/api/po`)
+    apiFetch("/api/po")
       .then((res) => {
         if (!res.ok) throw new Error(`PO 목록을 불러오지 못했습니다 (${res.status})`);
         return res.json() as Promise<PurchaseOrderSummary[]>;
@@ -75,7 +75,7 @@ export function POManagementPage() {
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const res = await fetch(`${API_BASE_URL}/api/po/upload`, { method: "POST", body: formData });
+      const res = await apiFetch("/api/po/upload", { method: "POST", body: formData });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
         throw new Error(body?.message ?? `업로드 실패 (${res.status})`);

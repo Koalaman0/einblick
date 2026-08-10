@@ -8,7 +8,7 @@ import {
 } from "recharts";
 import { cn } from "@/lib/utils";
 import { productionChart, shippingChart, recentActivities, notifications } from "@/data/mockData";
-import { API_BASE_URL } from "@/lib/apiConfig";
+import { apiFetch } from "@/lib/apiConfig";
 import type { PurchaseOrderSummary } from "@/types";
 
 const BRAND_COLORS = ["#2563EB", "#7C3AED", "#059669", "#D97706", "#DC2626", "#0EA5E9", "#DB2777"];
@@ -24,8 +24,8 @@ export function DashboardPage() {
 
   useEffect(() => {
     Promise.all([
-      fetch(`${API_BASE_URL}/api/po`).then((r) => (r.ok ? r.json() : [])),
-      fetch(`${API_BASE_URL}/api/reconciliation`).then((r) => (r.ok ? r.json() : [])),
+      apiFetch("/api/po").then((r) => (r.ok ? r.json() : [])),
+      apiFetch("/api/reconciliation").then((r) => (r.ok ? r.json() : [])),
     ])
       .then(([poData, reconData]) => {
         setPos(poData);

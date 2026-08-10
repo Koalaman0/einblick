@@ -1,7 +1,7 @@
 import { useEffect, useState, type ElementType } from "react";
 import { RefreshCw, CheckCircle, XCircle, AlertTriangle, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { API_BASE_URL } from "@/lib/apiConfig";
+import { apiFetch } from "@/lib/apiConfig";
 
 interface ReconciliationResultDto {
   id: number;
@@ -40,7 +40,7 @@ export function ReconciliationPage() {
   const loadResults = () => {
     setLoading(true);
     setError(null);
-    fetch(`${API_BASE_URL}/api/reconciliation`)
+    apiFetch("/api/reconciliation")
       .then((res) => {
         if (!res.ok) throw new Error(`대사 결과를 불러오지 못했습니다 (${res.status})`);
         return res.json() as Promise<ReconciliationResultDto[]>;
@@ -61,7 +61,7 @@ export function ReconciliationPage() {
     setRunning(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/reconciliation/run`, { method: "POST" });
+      const res = await apiFetch("/api/reconciliation/run", { method: "POST" });
       if (!res.ok) throw new Error(`대사 실행에 실패했습니다 (${res.status})`);
       const data = (await res.json()) as ReconciliationResultDto[];
       setResults(data);

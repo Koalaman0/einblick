@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Database, Settings } from "lucide-react";
 import type { Page } from "@/types";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { LoginPage } from "@/pages/LoginPage";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
 import { DashboardPage } from "@/pages/DashboardPage";
@@ -14,8 +16,7 @@ import { ShippingPage } from "@/pages/ShippingPage";
 import { UserManagementPage } from "@/pages/UserManagementPage";
 import { PlaceholderPage } from "@/pages/PlaceholderPage";
 
-// ── App Root ──────────────────────────────────────────────
-export default function App() {
+function MainApp() {
   const [page, setPage] = useState<Page>("dashboard");
   const [dark, setDark] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -42,5 +43,20 @@ export default function App() {
         </div>
       </div>
     </div>
+  );
+}
+
+function Gate() {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  return user ? <MainApp /> : <LoginPage />;
+}
+
+// ── App Root ──────────────────────────────────────────────
+export default function App() {
+  return (
+    <AuthProvider>
+      <Gate />
+    </AuthProvider>
   );
 }
