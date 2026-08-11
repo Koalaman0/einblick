@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Database, Settings } from "lucide-react";
+import { Settings } from "lucide-react";
 import type { Page } from "@/types";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { LoginPage } from "@/pages/LoginPage";
@@ -14,6 +14,7 @@ import { ReconciliationPage } from "@/pages/ReconciliationPage";
 import { StickerPackingPage } from "@/pages/StickerPackingPage";
 import { ShippingPage } from "@/pages/ShippingPage";
 import { UserManagementPage } from "@/pages/UserManagementPage";
+import { ReferenceDataPage } from "@/pages/ReferenceDataPage";
 import { PlaceholderPage } from "@/pages/PlaceholderPage";
 
 function MainApp() {
@@ -36,7 +37,7 @@ function MainApp() {
             {page === "reconciliation" && <ReconciliationPage />}
             {page === "sticker" && <StickerPackingPage />}
             {page === "shipping" && <ShippingPage />}
-            {page === "reference" && <PlaceholderPage title="기준정보 관리" desc="브랜드, 공장, 원자재 등 기준 데이터를 관리합니다" icon={Database} />}
+            {page === "reference" && <ReferenceDataPage />}
             {page === "users" && <UserManagementPage />}
             {page === "settings" && <PlaceholderPage title="설정" desc="시스템 환경설정 및 알림 설정을 관리합니다" icon={Settings} />}
           </main>
