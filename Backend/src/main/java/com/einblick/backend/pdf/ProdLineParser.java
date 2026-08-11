@@ -3,26 +3,37 @@ package com.einblick.backend.pdf;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * PO PDF 2페이지 "Prod Line Details" 테이블 파서.
+ * PO PDF "Prod Line Details" 테이블 파서.
  *
  * 전제: PDFBox PDFTextStripper.setSortByPosition(true)로 추출한 텍스트를 입력으로 받음.
- * 이 템플릿은 컬럼 폭이 좁아서 스타일코드/팀명이 길면 다음 줄로 줄바꿈되는 특징이 있음
- * (예: "HZ3B3GA2B0" + 다음줄 "0" = "HZ3B3GA2B00").
  *
- * 주의: 팀명 2단어("TORONTO BLUE JAYS") / 컬러 2단어("RUSH BLUE") 기준으로 단어 개수를 가정함.
- * 다른 PO 샘플에서 단어 개수가 다르면 (예: 팀명 1단어, 컬러 3단어) 아래 prefix 분리 로직을 조정해야 함.
- * 실제 서비스에서는 여러 PO 샘플로 검증 후 필요시 버전(템플릿)별 파서로 분리할 것.
+ * 실제 발주서에서 확인된 특징:
+ * - HTS 코드(10자리 숫자)는 항상 있고, 그 바로 앞 토큰이 수량(정수)이다 -> 이 둘을 오른쪽에서부터
+ *   찾는 게 가장 안정적인 앵커. UPC는 12자리 숫자일 때도 있지만 아직 배정 전이면 "Contact" 같은
+ *   문자열이 들어오기도 하고, UPC와 수량 사이에 Ratio(팩 비율) 숫자가 하나 더 끼어드는 템플릿도
+ *   있어서 UPC를 앵커로 쓰면(예전 방식) 매칭이 깨진다.
+ * - 사이즈 코드("S-8", "M-10/12", "XL-18/20"처럼 하이픈이 들어간 토큰)로 사이즈 위치를 우선
+ *   찾고, 못 찾으면 [스타일코드][팀명][고객코드 1단어][컬러 2단어] 다음 토큰을 사이즈로 가정한다.
+ * - 컬럼 폭이 좁아 팀/플레이어명이 다음 줄로 줄바꿈되는 경우가 있는데(예: "TORONTO BLUE" +
+ *   다음줄 "JAYS"), 그 다음 줄에는 설명(description)이 줄바꿈된 것("Outerstuff For", "UPC")도
+ *   똑같이 나타나서 "데이터 행이 아닌 다음 줄 = 팀명 이어붙이기"로 자동 판단할 수가 없다.
+ *   설명 텍스트를 팀명에 잘못 붙이면 사이즈/수량은 멀쩡해도 팀명이 오염돼 대사(reconciliation)
+ *   매칭이 깨지므로, 이어붙이기는 하지 않고 팀명이 줄바꿈으로 잘리는 것을 감수한다 - 고객코드/
+ *   컬러는 항상 사이즈 바로 앞 고정 위치(끝에서부터 3칸)에 있어서 팀명 단어 수가 줄어들어도
+ *   영향받지 않는다.
+ *
+ * 다른 벤더/템플릿에서 컬러가 3단어 이상이면 아래 고정폭 가정을 조정해야 할 수 있음 - 실제
+ * 서비스에서는 여러 PO 샘플로 계속 검증할 것.
  */
 public class ProdLineParser {
 
-    // UPC=12자리, HTS=10자리 숫자를 앵커로 잡아서 그 사이 값들을 추출
-    private static final Pattern ROW_PATTERN = Pattern.compile(
-        "^(?<prefix>.+?)\\s+(?<size>\\S+)\\s+(?<upc>\\d{12})\\s+(?<qty>\\d+)\\s+(?<hts>\\d{10})\\s+(?<desc>.+)$"
-    );
+    private static final Pattern HTS_PATTERN = Pattern.compile("\\d{10}");
+    private static final Pattern DIGITS_PATTERN = Pattern.compile("\\d+");
+    private static final Pattern ANY_DIGIT = Pattern.compile(".*\\d.*");
+    private static final int PREFIX_TOKEN_COUNT = 6; // 스타일코드 + 팀명(2) + 고객코드(1) + 컬러(2)
 
     public record ProdLineRow(
         String styleCode,
@@ -40,55 +51,65 @@ public class ProdLineParser {
         List<ProdLineRow> result = new ArrayList<>();
         String[] lines = extractedText.split("\n");
 
-        for (int i = 0; i < lines.length; i++) {
-            String line = lines[i].trim();
-            Matcher m = ROW_PATTERN.matcher(line);
-            if (!m.matches()) continue;
+        for (String rawLine : lines) {
+            String[] tokens = tokenize(rawLine.trim());
+            int htsIdx = findHtsIndex(tokens);
+            if (htsIdx < 0) continue;
 
-            String prefix = m.group("prefix").trim();
-            String size = m.group("size");
-            String upc = m.group("upc");
-            int qty = Integer.parseInt(m.group("qty"));
-            String hts = m.group("hts");
-            String desc = m.group("desc").trim();
+            int sizeIdx = findSizeIndex(tokens, htsIdx);
+            if (sizeIdx < 0) continue;
 
-            // 다음 줄이 새로운 데이터 행이 아니면(=UPC/HTS 패턴이 없으면) 줄바꿈 연속으로 간주
-            String continuation = "";
-            if (i + 1 < lines.length) {
-                String next = lines[i + 1].trim();
-                if (!next.isEmpty() && !ROW_PATTERN.matcher(next).matches()) {
-                    continuation = next;
-                    i++; // 다음 줄 소비 (다시 순회하지 않도록)
-                }
-            }
+            int qty = Integer.parseInt(tokens[htsIdx - 1]);
+            String hts = tokens[htsIdx];
+            String desc = String.join(" ", Arrays.copyOfRange(tokens, htsIdx + 1, tokens.length));
+            String sizeCode = tokens[sizeIdx];
+            String upc = sizeIdx + 1 <= htsIdx - 2 ? tokens[sizeIdx + 1] : "";
 
-            // prefix 예: "HZ3B3GA2B0 TORONTO BLUE NDJ RUSH BLUE"
-            // 구조: [스타일코드] [팀명 2단어] [고객코드 1단어] [컬러 2단어]
-            String[] parts = prefix.split("\\s+");
-            String styleCode = parts.length > 0 ? parts[0] : "";
+            // prefix 예: "HZ3B7B1AP00 BARGER ADDISON NJW COBALT PULSE"
+            // 구조: [스타일코드] [팀명(가변 단어 수)] [고객코드 1단어] [컬러 2단어]
+            // 고객코드/컬러는 항상 사이즈 바로 앞 고정 위치(끝에서 3칸)에 있으므로, 팀명이
+            // 줄바꿈으로 일부 잘려 단어 수가 달라져도 안전하게 분리된다.
+            String[] prefixTokens = Arrays.copyOfRange(tokens, 0, sizeIdx);
+            String styleCode = prefixTokens.length > 0 ? prefixTokens[0] : "";
             String customerCode = "";
             String team = "";
             String color = "";
 
-            if (parts.length >= 6) {
-                team = parts[1] + " " + parts[2];
-                customerCode = parts[3];
-                color = parts[4] + " " + parts[5];
-            } else if (parts.length > 1) {
-                // 예상과 다른 단어 수 - 최대한 안전하게 남은 걸 team에 몰아넣고 표시
-                team = String.join(" ", Arrays.copyOfRange(parts, 1, parts.length));
+            if (prefixTokens.length >= 4) {
+                color = prefixTokens[prefixTokens.length - 2] + " " + prefixTokens[prefixTokens.length - 1];
+                customerCode = prefixTokens[prefixTokens.length - 3];
+                team = String.join(" ", Arrays.copyOfRange(prefixTokens, 1, prefixTokens.length - 3));
+            } else if (prefixTokens.length > 1) {
+                team = String.join(" ", Arrays.copyOfRange(prefixTokens, 1, prefixTokens.length));
             }
 
-            if (!continuation.isEmpty()) {
-                String[] contParts = continuation.split("\\s+", 2);
-                styleCode += contParts[0]; // "0" 이어붙여서 "HZ3B3GA2B00"
-                if (contParts.length > 1) {
-                    team = (team + " " + contParts[1]).trim(); // "JAYS" 이어붙임
-                }
-            }
-
-            result.add(new ProdLineRow(styleCode, team, customerCode, color, size, upc, qty, hts, desc));
+            result.add(new ProdLineRow(styleCode, team, customerCode, color, sizeCode, upc, qty, hts, desc));
         }
         return result;
+    }
+
+    private String[] tokenize(String line) {
+        return line.isEmpty() ? new String[0] : line.split("\\s+");
+    }
+
+    // 오른쪽부터 훑어서 "HTS(10자리 숫자) 바로 앞이 수량(정수)"인 첫 위치를 데이터 행의 HTS로 본다.
+    private int findHtsIndex(String[] tokens) {
+        for (int t = tokens.length - 1; t >= PREFIX_TOKEN_COUNT + 2; t--) {
+            if (HTS_PATTERN.matcher(tokens[t]).matches() && DIGITS_PATTERN.matcher(tokens[t - 1]).matches()) {
+                return t;
+            }
+        }
+        return -1;
+    }
+
+    // 사이즈 코드는 하이픈과 숫자가 둘 다 들어간 토큰("S-8", "M-10/12")으로 우선 찾고, 없으면
+    // prefix가 6토큰(스타일+팀2+고객1+컬러2)이라는 기존 가정대로 그다음 토큰을 사이즈로 본다.
+    private int findSizeIndex(String[] tokens, int htsIdx) {
+        for (int t = 1; t < htsIdx - 1; t++) {
+            if (tokens[t].contains("-") && ANY_DIGIT.matcher(tokens[t]).matches()) {
+                return t;
+            }
+        }
+        return htsIdx - 1 > PREFIX_TOKEN_COUNT ? PREFIX_TOKEN_COUNT : -1;
     }
 }

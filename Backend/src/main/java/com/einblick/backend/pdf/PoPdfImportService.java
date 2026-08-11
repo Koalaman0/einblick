@@ -16,7 +16,7 @@ import java.util.List;
 /**
  * PO PDF 업로드 진입점. PDF 한 장에 PO가 여러 개 묶여 있을 수 있어서, 페이지를 앞에서부터
  * 훑으며 "PURCHASE ORDER" 헤더 페이지를 만날 때마다 새 PO로 구분하고, 그 뒤로 이어지는
- * "PACKING"+"UPC" 데이터 페이지들을 해당 PO에 붙인다. PO별로 PoImportUnitService를 호출해
+ * (헤더가 아닌) 모든 페이지를 해당 PO의 데이터로 붙인다. PO별로 PoImportUnitService를 호출해
  * 독립적으로 저장하므로, 여러 PO 중 일부가 실패해도 나머지는 정상 등록된다.
  */
 @Service
@@ -78,18 +78,21 @@ public class PoPdfImportService {
             for (int pageNum = 1; pageNum <= pageCount; pageNum++) {
                 String pageText = extractPage(doc, pageNum);
 
-                // 페이지 번호가 아니라 내용으로 유형 판별
-                // - "PACKING/UPC INFO" 헤더 박스가 있는 페이지 = 사이즈별 수량 데이터 -> 현재 PO에 이어붙임
-                // - "PURCHASE ORDER" 헤더 박스가 있는 페이지 = 새 PO의 시작
-                if (pageText.contains("PACKING") && pageText.contains("UPC")) {
+                // 페이지 번호가 아니라 내용으로 유형 판별.
+                // "PACKING/UPC INFO" 타이틀은 데이터 섹션의 첫 페이지에만 찍히고, 사이즈/컬러가 많아
+                // 데이터가 여러 페이지로 이어지는 경우 이후 페이지들은 그 타이틀 없이 표만 계속된다.
+                // 그래서 "PACKING"+"UPC"를 데이터 페이지 판별 기준으로 쓰면 이어지는 페이지가
+                // 빠져서 수량이 조용히 누락된다 - 대신 "PURCHASE ORDER"가 없는 페이지는 전부
+                // 현재 PO의 데이터로 취급한다 (새 PO 헤더만 명확한 경계).
+                if (pageText.contains("PURCHASE ORDER")) {
+                    current = new PoSegment(pageText);
+                    segments.add(current);
+                } else {
                     if (current == null) {
                         current = new PoSegment(null);
                         segments.add(current);
                     }
                     current.appendData(pageText);
-                } else if (pageText.contains("PURCHASE ORDER")) {
-                    current = new PoSegment(pageText);
-                    segments.add(current);
                 }
             }
         } catch (IOException e) {
