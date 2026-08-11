@@ -48,6 +48,7 @@ export function POManagementPage() {
 
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadNotice, setUploadNotice] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [programs, setPrograms] = useState<ProgramOption[]>([]);
@@ -142,6 +143,7 @@ export function POManagementPage() {
 
     setUploading(true);
     setUploadError(null);
+    setUploadNotice(null);
     try {
       const formData = new FormData();
       formData.append("file", file);
@@ -149,6 +151,12 @@ export function POManagementPage() {
       if (!res.ok) {
         const body = await res.json().catch(() => null);
         throw new Error(body?.message ?? `업로드 실패 (${res.status})`);
+      }
+      const result: { detected: number; succeeded: number; failed: number; failureMessages: string[] } = await res.json();
+      if (result.detected > 1 || result.failed > 0) {
+        const parts = [`PDF에서 PO ${result.detected}건 감지, ${result.succeeded}건 등록 완료`];
+        if (result.failed > 0) parts.push(`${result.failed}건 실패 (${result.failureMessages.join(", ")})`);
+        setUploadNotice(parts.join(" · "));
       }
       loadPurchaseOrders();
     } catch (err) {
@@ -196,6 +204,9 @@ export function POManagementPage() {
             </div>
             {uploadError && (
               <div className="mt-2.5 text-[11px] text-red-600 bg-red-50 border border-red-100 rounded-lg px-2.5 py-1.5">{uploadError}</div>
+            )}
+            {uploadNotice && (
+              <div className="mt-2.5 text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-1.5">{uploadNotice}</div>
             )}
           </div>
 

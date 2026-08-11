@@ -1,6 +1,5 @@
 package com.einblick.backend.pdf;
 
-import com.einblick.backend.domain.po.PurchaseOrder;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -17,12 +16,11 @@ public class PoUploadController {
     }
 
     @PostMapping(value = "/upload", consumes = "multipart/form-data")
-    public ResponseEntity<PoImportResponse> uploadPo(@RequestParam("file") MultipartFile file) {
+    public ResponseEntity<PoBatchImportResponse> uploadPo(@RequestParam("file") MultipartFile file) {
         if (file.isEmpty()) {
             throw new PoPdfParseException("업로드된 파일이 비어 있습니다.");
         }
-        PurchaseOrder saved = poPdfImportService.importPdf(file);
-        return ResponseEntity.status(HttpStatus.CREATED).body(PoImportResponse.from(saved));
+        return ResponseEntity.status(HttpStatus.CREATED).body(poPdfImportService.importPdf(file));
     }
 
     @ExceptionHandler(PoPdfParseException.class)

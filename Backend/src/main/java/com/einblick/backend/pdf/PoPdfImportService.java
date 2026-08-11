@@ -1,13 +1,5 @@
 package com.einblick.backend.pdf;
 
-import com.einblick.backend.domain.customer.Customer;
-import com.einblick.backend.domain.customer.CustomerRepository;
-import com.einblick.backend.domain.po.PoLine;
-import com.einblick.backend.domain.po.PoLineSize;
-import com.einblick.backend.domain.po.PurchaseOrder;
-import com.einblick.backend.domain.po.PurchaseOrderRepository;
-import com.einblick.backend.domain.program.Program;
-import com.einblick.backend.domain.program.ProgramRepository;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
@@ -15,141 +7,95 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
+/**
+ * PO PDF 업로드 진입점. PDF 한 장에 PO가 여러 개 묶여 있을 수 있어서, 페이지를 앞에서부터
+ * 훑으며 "PURCHASE ORDER" 헤더 페이지를 만날 때마다 새 PO로 구분하고, 그 뒤로 이어지는
+ * "PACKING"+"UPC" 데이터 페이지들을 해당 PO에 붙인다. PO별로 PoImportUnitService를 호출해
+ * 독립적으로 저장하므로, 여러 PO 중 일부가 실패해도 나머지는 정상 등록된다.
+ */
 @Service
 public class PoPdfImportService {
 
     private static final Logger log = LoggerFactory.getLogger(PoPdfImportService.class);
 
-    private final PurchaseOrderRepository purchaseOrderRepository;
-    private final ProgramRepository programRepository;
-    private final CustomerRepository customerRepository;
-    private final PoHeaderParser headerParser = new PoHeaderParser();
-    private final ProdLineParser prodLineParser = new ProdLineParser();
+    private final PoImportUnitService poImportUnitService;
 
-    public PoPdfImportService(
-        PurchaseOrderRepository purchaseOrderRepository,
-        ProgramRepository programRepository,
-        CustomerRepository customerRepository
-    ) {
-        this.purchaseOrderRepository = purchaseOrderRepository;
-        this.programRepository = programRepository;
-        this.customerRepository = customerRepository;
+    public PoPdfImportService(PoImportUnitService poImportUnitService) {
+        this.poImportUnitService = poImportUnitService;
     }
 
-    @Transactional
-    public PurchaseOrder importPdf(MultipartFile file) {
-        String headerPageText = null;
-        StringBuilder dataPagesText = new StringBuilder();
+    public PoBatchImportResponse importPdf(MultipartFile file) {
+        List<PoSegment> segments = extractSegments(file);
+        if (segments.isEmpty()) {
+            throw new PoPdfParseException("PO 헤더 페이지(PURCHASE ORDER)를 찾지 못했습니다.");
+        }
 
+        List<PoImportResponse> created = new ArrayList<>();
+        List<String> failures = new ArrayList<>();
+
+        for (int i = 0; i < segments.size(); i++) {
+            PoSegment segment = segments.get(i);
+            String label = segments.size() > 1 ? (i + 1) + "번째 PO: " : "";
+            try {
+                if (segment.headerPageText() == null) {
+                    throw new PoPdfParseException("PO 헤더 페이지(PURCHASE ORDER)를 찾지 못했습니다.");
+                }
+                if (segment.dataIsEmpty()) {
+                    throw new PoPdfParseException("사이즈별 수량 데이터 페이지(PACKING/UPC INFO)를 찾지 못했습니다.");
+                }
+                created.add(PoImportResponse.from(
+                    poImportUnitService.importOne(segment.headerPageText(), segment.dataPagesText())
+                ));
+            } catch (PoPdfParseException e) {
+                failures.add(label + e.getMessage());
+            } catch (DataIntegrityViolationException e) {
+                log.error("PO PDF 저장 중 데이터 무결성 오류", e);
+                failures.add(label + "데이터 저장 중 오류가 발생했습니다.");
+            } catch (RuntimeException e) {
+                log.error("PO PDF 파싱 중 예상치 못한 오류", e);
+                failures.add(label + "처리 중 예상치 못한 오류가 발생했습니다: " + e.getMessage());
+            }
+        }
+
+        if (created.isEmpty()) {
+            throw new PoPdfParseException(String.join(" / ", failures));
+        }
+
+        return new PoBatchImportResponse(segments.size(), created.size(), failures.size(), created, failures);
+    }
+
+    private List<PoSegment> extractSegments(MultipartFile file) {
+        List<PoSegment> segments = new ArrayList<>();
         try (PDDocument doc = Loader.loadPDF(file.getBytes())) {
             int pageCount = doc.getNumberOfPages();
+            PoSegment current = null;
             for (int pageNum = 1; pageNum <= pageCount; pageNum++) {
                 String pageText = extractPage(doc, pageNum);
 
                 // 페이지 번호가 아니라 내용으로 유형 판별
-                // - "PURCHASE ORDER" 헤더 박스가 있는 페이지 = PO 헤더 정보
-                // - "PACKING/UPC INFO" 헤더 박스가 있는 페이지 = 사이즈별 수량 데이터
-                // 사이즈/컬러가 많아서 데이터 페이지가 여러 장이어도 전부 이어붙여서 하나로 처리
+                // - "PACKING/UPC INFO" 헤더 박스가 있는 페이지 = 사이즈별 수량 데이터 -> 현재 PO에 이어붙임
+                // - "PURCHASE ORDER" 헤더 박스가 있는 페이지 = 새 PO의 시작
                 if (pageText.contains("PACKING") && pageText.contains("UPC")) {
-                    dataPagesText.append(pageText).append("\n");
-                } else if (headerPageText == null && pageText.contains("PURCHASE ORDER")) {
-                    headerPageText = pageText;
+                    if (current == null) {
+                        current = new PoSegment(null);
+                        segments.add(current);
+                    }
+                    current.appendData(pageText);
+                } else if (pageText.contains("PURCHASE ORDER")) {
+                    current = new PoSegment(pageText);
+                    segments.add(current);
                 }
             }
         } catch (IOException e) {
             throw new PoPdfParseException("PDF 파일을 읽을 수 없습니다: " + e.getMessage(), e);
         }
-
-        if (headerPageText == null) {
-            throw new PoPdfParseException("PO 헤더 페이지(PURCHASE ORDER)를 찾지 못했습니다.");
-        }
-        if (dataPagesText.isEmpty()) {
-            throw new PoPdfParseException("사이즈별 수량 데이터 페이지(PACKING/UPC INFO)를 찾지 못했습니다.");
-        }
-
-        try {
-            return buildAndSave(headerPageText, dataPagesText.toString());
-        } catch (PoPdfParseException e) {
-            throw e;
-        } catch (DataIntegrityViolationException e) {
-            log.error("PO PDF 저장 중 데이터 무결성 오류", e);
-            throw new PoPdfParseException("PDF에서 추출한 데이터에 예상치 못한 중복/누락이 있어 저장하지 못했습니다. 원본 PDF 양식을 확인해주세요.", e);
-        } catch (RuntimeException e) {
-            log.error("PO PDF 파싱 중 예상치 못한 오류", e);
-            throw new PoPdfParseException("PDF를 처리하는 중 예상치 못한 오류가 발생했습니다: " + e.getMessage(), e);
-        }
-    }
-
-    private PurchaseOrder buildAndSave(String headerPageText, String dataPagesText) {
-        PoHeaderParser.PoHeader header = headerParser.parse(headerPageText);
-        if (header.poNumber() == null) {
-            throw new PoPdfParseException("PO NUMBER를 PDF에서 추출하지 못했습니다. 템플릿 형식을 확인해주세요.");
-        }
-        if (purchaseOrderRepository.existsByPoNumber(header.poNumber())) {
-            throw new PoPdfParseException("이미 등록된 PO입니다: " + header.poNumber());
-        }
-
-        List<ProdLineParser.ProdLineRow> rows = prodLineParser.parse(dataPagesText);
-        if (rows.isEmpty()) {
-            throw new PoPdfParseException("사이즈별 수량 정보를 추출하지 못했습니다.");
-        }
-
-        Program program = findOrCreateProgram(header);
-        Customer customer = findOrCreateHouseCustomer();
-
-        int grandTotalQty = rows.stream().mapToInt(ProdLineParser.ProdLineRow::qty).sum();
-
-        PurchaseOrder po = PurchaseOrder.builder()
-            .poNumber(header.poNumber())
-            .program(program)
-            .customer(customer)
-            .dlvyDate(header.xfactoryDate())
-            .transportMethod(parseTransportMethod(header.transportMethod()))
-            .totalQty(grandTotalQty)
-            .originalPdfUrl(null) // 실제 파일 저장 경로 붙일 위치 (스토리지 연동 시 채울 것)
-            .build();
-
-        // 이 템플릿은 사이즈별로 행이 나뉘어 있고 팀은 전부 동일 -> team별로 묶어서 PoLine을 생성
-        // (한 PO 안에 팀이 여러 개 섞인 경우도 이 로직이 자동으로 PoLine을 team 개수만큼 나눠서 만들어줌)
-        Map<String, List<ProdLineParser.ProdLineRow>> byTeam = new HashMap<>();
-        for (ProdLineParser.ProdLineRow row : rows) {
-            byTeam.computeIfAbsent(row.team(), k -> new java.util.ArrayList<>()).add(row);
-        }
-
-        for (Map.Entry<String, List<ProdLineParser.ProdLineRow>> entry : byTeam.entrySet()) {
-            int lineTotal = entry.getValue().stream().mapToInt(ProdLineParser.ProdLineRow::qty).sum();
-
-            PoLine poLine = PoLine.builder()
-                .team(entry.getKey())
-                .totalQty(lineTotal)
-                .build();
-
-            // 같은 팀이라도 컬러웨이/고객코드가 다른 여러 행이 같은 사이즈로 나올 수 있는데,
-            // PoLineSize는 (PO_LINE_ID, SIZE_CODE)가 유니크라 행마다 그대로 넣으면 중복키 충돌이 난다.
-            // 같은 사이즈는 수량을 합산해 하나로 저장한다 (대사는 팀 단위 사이즈 합계만 보므로 의미 손실 없음).
-            Map<String, Integer> qtyBySize = new java.util.LinkedHashMap<>();
-            for (ProdLineParser.ProdLineRow row : entry.getValue()) {
-                qtyBySize.merge(row.sizeCode(), row.qty(), Integer::sum);
-            }
-            for (Map.Entry<String, Integer> sizeEntry : qtyBySize.entrySet()) {
-                PoLineSize size = PoLineSize.builder()
-                    .sizeCode(sizeEntry.getKey())
-                    .qty(sizeEntry.getValue())
-                    .build();
-                poLine.addSize(size);
-            }
-            po.addPoLine(poLine);
-        }
-
-        return purchaseOrderRepository.save(po);
+        return segments;
     }
 
     private String extractPage(PDDocument doc, int pageNumber) throws IOException {
@@ -160,36 +106,28 @@ public class PoPdfImportService {
         return stripper.getText(doc);
     }
 
-    private Program findOrCreateProgram(PoHeaderParser.PoHeader header) {
-        return programRepository.findByStyleCodeAndSeason(header.styleCode(), header.season())
-            .orElseGet(() -> programRepository.save(
-                Program.builder()
-                    .styleCode(header.styleCode())
-                    .styleName(header.styleName())
-                    .brand(header.brand())
-                    .league(header.league())
-                    .season(header.season())
-                    .build()
-            ));
-    }
+    private static final class PoSegment {
+        private final String headerPageText;
+        private final StringBuilder dataPagesText = new StringBuilder();
 
-    private Customer findOrCreateHouseCustomer() {
-        return customerRepository.findByCode("HOUSE")
-            .orElseGet(() -> customerRepository.save(
-                Customer.builder()
-                    .code("HOUSE")
-                    .name("HOUSE")
-                    .houseAlias(true)
-                    .build()
-            ));
-    }
+        PoSegment(String headerPageText) {
+            this.headerPageText = headerPageText;
+        }
 
-    private PurchaseOrder.TransportMethod parseTransportMethod(String raw) {
-        if (raw == null) return PurchaseOrder.TransportMethod.UNASSIGNED;
-        try {
-            return PurchaseOrder.TransportMethod.valueOf(raw);
-        } catch (IllegalArgumentException e) {
-            return PurchaseOrder.TransportMethod.UNASSIGNED;
+        String headerPageText() {
+            return headerPageText;
+        }
+
+        void appendData(String text) {
+            dataPagesText.append(text).append("\n");
+        }
+
+        String dataPagesText() {
+            return dataPagesText.toString();
+        }
+
+        boolean dataIsEmpty() {
+            return dataPagesText.isEmpty();
         }
     }
 }
