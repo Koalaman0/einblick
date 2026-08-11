@@ -6,6 +6,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @RestController
@@ -36,6 +37,23 @@ public class PurchaseOrderController {
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         purchaseOrderService.delete(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping
+    public ResponseEntity<PoBulkDeleteResponse> bulkDelete(@Valid @RequestBody PoBulkDeleteRequest request) {
+        int deleted = 0;
+        List<String> failures = new ArrayList<>();
+        // 각 건을 purchaseOrderService.delete(id)로 개별 호출해서 프록시를 거치게 하고(같은 클래스
+        // 내부 호출은 @Transactional이 안 먹으므로), 한 건이 실패해도 나머지는 계속 처리한다.
+        for (Long id : request.ids()) {
+            try {
+                purchaseOrderService.delete(id);
+                deleted++;
+            } catch (EntityNotFoundException e) {
+                failures.add(e.getMessage());
+            }
+        }
+        return ResponseEntity.ok(new PoBulkDeleteResponse(deleted, failures.size(), failures));
     }
 
     @ExceptionHandler(PoCreateException.class)

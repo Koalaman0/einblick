@@ -51,6 +51,8 @@ export function POManagementPage() {
   const [uploadNotice, setUploadNotice] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [programs, setPrograms] = useState<ProgramOption[]>([]);
@@ -143,6 +145,44 @@ export function POManagementPage() {
     }
   };
 
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!window.confirm(`선택한 PO ${selectedIds.size}건을 삭제하시겠습니까? 관련 대사결과/스티커 요청도 함께 삭제되며 되돌릴 수 없습니다.`)) return;
+    setBulkDeleting(true);
+    setDeleteError(null);
+    try {
+      const res = await apiFetch("/api/po", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: Array.from(selectedIds) }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.message ?? `삭제 실패 (${res.status})`);
+      }
+      const result: { deleted: number; failed: number; failureMessages: string[] } = await res.json();
+      if (result.failed > 0) {
+        setDeleteError(`${result.deleted}건 삭제 완료, ${result.failed}건 실패 (${result.failureMessages.join(", ")})`);
+      }
+      setSelectedIds(new Set());
+      setSelected(null);
+      loadPurchaseOrders();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "삭제 중 오류가 발생했습니다.");
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
+  const toggleSelectOne = (id: number) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   const brands = useMemo(() => ["전체", ...Array.from(new Set(pos.map((p) => p.brand))).sort()], [pos]);
   const seasons = useMemo(() => ["전체", ...Array.from(new Set(pos.map((p) => p.season))).sort()], [pos]);
   const statuses = ["전체", ...Object.keys(STATUS_LABELS)];
@@ -156,6 +196,16 @@ export function POManagementPage() {
       (season === "전체" || p.season === season)
     );
   });
+
+  const allFilteredSelected = filtered.length > 0 && filtered.every((p) => selectedIds.has(p.id));
+  const toggleSelectAll = () => {
+    setSelectedIds((prev) => {
+      if (allFilteredSelected) return new Set();
+      const next = new Set(prev);
+      filtered.forEach((p) => next.add(p.id));
+      return next;
+    });
+  };
 
   const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -289,11 +339,31 @@ export function POManagementPage() {
             </div>
           )}
 
+          {deleteError && (
+            <div className="text-[11px] text-red-600 bg-red-50 border border-red-100 rounded-lg px-3.5 py-2">{deleteError}</div>
+          )}
+
+          {selectedIds.size > 0 && (
+            <div className="flex items-center justify-between bg-blue-50 border border-blue-100 rounded-xl px-3.5 py-2">
+              <span className="text-[12px] text-blue-700 font-medium">{selectedIds.size}건 선택됨</span>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setSelectedIds(new Set())} className="text-[11px] text-[#64748B] hover:text-[#0F172A]">선택 해제</button>
+                <button onClick={handleBulkDelete} disabled={bulkDeleting}
+                  className="h-7 px-3 bg-red-500 hover:bg-red-600 disabled:bg-red-300 text-white rounded-lg text-[11px] font-medium flex items-center gap-1.5">
+                  {bulkDeleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}선택 삭제
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="bg-white rounded-xl border border-[#E2E8F0] overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-[#E2E8F0] bg-[#F8FAFC]">
+                    <th className="px-3.5 py-2.5 w-8">
+                      <input type="checkbox" checked={allFilteredSelected} onChange={toggleSelectAll} className="cursor-pointer" />
+                    </th>
                     {["PO번호", "스타일", "브랜드", "고객사", "시즌", "상태", "납기일", "출고방식", "총수량"].map((col) => (
                       <th key={col} className="text-left px-3.5 py-2.5 text-[11px] font-semibold text-[#64748B] whitespace-nowrap">{col}</th>
                     ))}
@@ -301,13 +371,13 @@ export function POManagementPage() {
                 </thead>
                 <tbody className="divide-y divide-[#F8FAFC]">
                   {loading && (
-                    <tr><td colSpan={9} className="px-3.5 py-8 text-center text-[12px] text-[#94A3B8]">불러오는 중...</td></tr>
+                    <tr><td colSpan={10} className="px-3.5 py-8 text-center text-[12px] text-[#94A3B8]">불러오는 중...</td></tr>
                   )}
                   {!loading && loadError && (
-                    <tr><td colSpan={9} className="px-3.5 py-8 text-center text-[12px] text-red-600">{loadError}</td></tr>
+                    <tr><td colSpan={10} className="px-3.5 py-8 text-center text-[12px] text-red-600">{loadError}</td></tr>
                   )}
                   {!loading && !loadError && filtered.length === 0 && (
-                    <tr><td colSpan={9} className="px-3.5 py-8 text-center text-[12px] text-[#94A3B8]">등록된 PO가 없습니다.</td></tr>
+                    <tr><td colSpan={10} className="px-3.5 py-8 text-center text-[12px] text-[#94A3B8]">등록된 PO가 없습니다.</td></tr>
                   )}
                   {!loading && !loadError && filtered.map((po) => (
                     <tr
@@ -315,6 +385,9 @@ export function POManagementPage() {
                       onClick={() => { setSelected(po); setTab("info"); }}
                       className={cn("hover:bg-[#F8FAFC] cursor-pointer transition-colors", selected?.id === po.id ? "bg-blue-50" : "")}
                     >
+                      <td className="px-3.5 py-2.5" onClick={(e) => e.stopPropagation()}>
+                        <input type="checkbox" checked={selectedIds.has(po.id)} onChange={() => toggleSelectOne(po.id)} className="cursor-pointer" />
+                      </td>
                       <td className="px-3.5 py-2.5 text-[12px] font-semibold text-[#2563EB]">{po.poNumber}</td>
                       <td className="px-3.5 py-2.5 text-[11px] font-mono text-[#0F172A] bg-[#F8FAFC]/50">{po.styleCode}</td>
                       <td className="px-3.5 py-2.5 text-[12px] text-[#0F172A]">{po.brand}</td>
