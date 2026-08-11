@@ -11,6 +11,9 @@ import com.einblick.backend.domain.program.ProgramRepository;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -22,6 +25,8 @@ import java.util.Map;
 
 @Service
 public class PoPdfImportService {
+
+    private static final Logger log = LoggerFactory.getLogger(PoPdfImportService.class);
 
     private final PurchaseOrderRepository purchaseOrderRepository;
     private final ProgramRepository programRepository;
@@ -70,6 +75,20 @@ public class PoPdfImportService {
             throw new PoPdfParseException("사이즈별 수량 데이터 페이지(PACKING/UPC INFO)를 찾지 못했습니다.");
         }
 
+        try {
+            return buildAndSave(headerPageText, dataPagesText.toString());
+        } catch (PoPdfParseException e) {
+            throw e;
+        } catch (DataIntegrityViolationException e) {
+            log.error("PO PDF 저장 중 데이터 무결성 오류", e);
+            throw new PoPdfParseException("PDF에서 추출한 데이터에 예상치 못한 중복/누락이 있어 저장하지 못했습니다. 원본 PDF 양식을 확인해주세요.", e);
+        } catch (RuntimeException e) {
+            log.error("PO PDF 파싱 중 예상치 못한 오류", e);
+            throw new PoPdfParseException("PDF를 처리하는 중 예상치 못한 오류가 발생했습니다: " + e.getMessage(), e);
+        }
+    }
+
+    private PurchaseOrder buildAndSave(String headerPageText, String dataPagesText) {
         PoHeaderParser.PoHeader header = headerParser.parse(headerPageText);
         if (header.poNumber() == null) {
             throw new PoPdfParseException("PO NUMBER를 PDF에서 추출하지 못했습니다. 템플릿 형식을 확인해주세요.");
@@ -78,7 +97,7 @@ public class PoPdfImportService {
             throw new PoPdfParseException("이미 등록된 PO입니다: " + header.poNumber());
         }
 
-        List<ProdLineParser.ProdLineRow> rows = prodLineParser.parse(dataPagesText.toString());
+        List<ProdLineParser.ProdLineRow> rows = prodLineParser.parse(dataPagesText);
         if (rows.isEmpty()) {
             throw new PoPdfParseException("사이즈별 수량 정보를 추출하지 못했습니다.");
         }
@@ -113,10 +132,17 @@ public class PoPdfImportService {
                 .totalQty(lineTotal)
                 .build();
 
+            // 같은 팀이라도 컬러웨이/고객코드가 다른 여러 행이 같은 사이즈로 나올 수 있는데,
+            // PoLineSize는 (PO_LINE_ID, SIZE_CODE)가 유니크라 행마다 그대로 넣으면 중복키 충돌이 난다.
+            // 같은 사이즈는 수량을 합산해 하나로 저장한다 (대사는 팀 단위 사이즈 합계만 보므로 의미 손실 없음).
+            Map<String, Integer> qtyBySize = new java.util.LinkedHashMap<>();
             for (ProdLineParser.ProdLineRow row : entry.getValue()) {
+                qtyBySize.merge(row.sizeCode(), row.qty(), Integer::sum);
+            }
+            for (Map.Entry<String, Integer> sizeEntry : qtyBySize.entrySet()) {
                 PoLineSize size = PoLineSize.builder()
-                    .sizeCode(row.sizeCode())
-                    .qty(row.qty())
+                    .sizeCode(sizeEntry.getKey())
+                    .qty(sizeEntry.getValue())
                     .build();
                 poLine.addSize(size);
             }
