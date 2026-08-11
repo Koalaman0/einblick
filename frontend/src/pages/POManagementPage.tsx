@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import {
   Search, Upload, Download, Plus, ChevronLeft, ChevronRight, X,
-  Paperclip, FileText, Eye, Check, XCircle, AlertTriangle, Loader2,
+  Paperclip, FileText, Eye, Check, XCircle, AlertTriangle, Loader2, Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { PurchaseOrderSummary, ShippingMethod } from "@/types";
@@ -49,6 +49,8 @@ export function POManagementPage() {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadNotice, setUploadNotice] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [programs, setPrograms] = useState<ProgramOption[]>([]);
@@ -119,6 +121,25 @@ export function POManagementPage() {
       setCreateError(err instanceof Error ? err.message : "등록 중 오류가 발생했습니다.");
     } finally {
       setCreateSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (po: PurchaseOrderSummary) => {
+    if (!window.confirm(`${po.poNumber} PO를 삭제하시겠습니까? 관련 대사결과/스티커 요청도 함께 삭제되며 되돌릴 수 없습니다.`)) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const res = await apiFetch(`/api/po/${po.id}`, { method: "DELETE" });
+      if (!res.ok && res.status !== 204) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.message ?? `삭제 실패 (${res.status})`);
+      }
+      setSelected(null);
+      loadPurchaseOrders();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "삭제 중 오류가 발생했습니다.");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -337,8 +358,17 @@ export function POManagementPage() {
                 <StatusBadge status={STATUS_LABELS[selected.status] ?? selected.status} />
               </div>
             </div>
-            <button onClick={() => setSelected(null)} className="w-7 h-7 rounded-lg hover:bg-[#F1F5F9] flex items-center justify-center text-[#64748B]"><X className="w-4 h-4" /></button>
+            <div className="flex items-center gap-1">
+              <button onClick={() => handleDelete(selected)} disabled={deleting}
+                className="w-7 h-7 rounded-lg hover:bg-red-50 flex items-center justify-center text-[#94A3B8] hover:text-red-500 disabled:opacity-50" title="삭제">
+                {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+              </button>
+              <button onClick={() => setSelected(null)} className="w-7 h-7 rounded-lg hover:bg-[#F1F5F9] flex items-center justify-center text-[#64748B]"><X className="w-4 h-4" /></button>
+            </div>
           </div>
+          {deleteError && (
+            <div className="mx-5 mt-3 text-[11px] text-red-600 bg-red-50 border border-red-100 rounded-lg px-2.5 py-1.5 shrink-0">{deleteError}</div>
+          )}
 
           <div className="flex border-b border-[#E2E8F0] px-1 shrink-0 overflow-x-auto">
             {[["info", "PO 정보"], ["files", "첨부파일"], ["history", "이력"], ["comments", "댓글"], ["reconcile", "대사결과"], ["sample", "샘플현황"]].map(([id, label]) => (

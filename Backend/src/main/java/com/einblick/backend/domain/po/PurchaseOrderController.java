@@ -32,6 +32,12 @@ public class PurchaseOrderController {
         return ResponseEntity.status(HttpStatus.CREATED).body(purchaseOrderService.create(request));
     }
 
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
+        purchaseOrderService.delete(id);
+        return ResponseEntity.noContent().build();
+    }
+
     @ExceptionHandler(PoCreateException.class)
     public ResponseEntity<ErrorResponse> handleCreateError(PoCreateException e) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse(e.getMessage()));

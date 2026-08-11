@@ -4,6 +4,8 @@ import com.einblick.backend.domain.customer.Customer;
 import com.einblick.backend.domain.customer.CustomerRepository;
 import com.einblick.backend.domain.program.Program;
 import com.einblick.backend.domain.program.ProgramRepository;
+import com.einblick.backend.domain.reconciliation.ReconciliationResultRepository;
+import com.einblick.backend.domain.sticker.StickerRequestRepository;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,15 +16,21 @@ public class PurchaseOrderService {
     private final PurchaseOrderRepository purchaseOrderRepository;
     private final ProgramRepository programRepository;
     private final CustomerRepository customerRepository;
+    private final StickerRequestRepository stickerRequestRepository;
+    private final ReconciliationResultRepository reconciliationResultRepository;
 
     public PurchaseOrderService(
         PurchaseOrderRepository purchaseOrderRepository,
         ProgramRepository programRepository,
-        CustomerRepository customerRepository
+        CustomerRepository customerRepository,
+        StickerRequestRepository stickerRequestRepository,
+        ReconciliationResultRepository reconciliationResultRepository
     ) {
         this.purchaseOrderRepository = purchaseOrderRepository;
         this.programRepository = programRepository;
         this.customerRepository = customerRepository;
+        this.stickerRequestRepository = stickerRequestRepository;
+        this.reconciliationResultRepository = reconciliationResultRepository;
     }
 
     @Transactional
@@ -72,6 +80,18 @@ public class PurchaseOrderService {
         }
 
         return PurchaseOrderSummaryResponse.from(purchaseOrderRepository.save(po));
+    }
+
+    @Transactional
+    public void delete(Long id) {
+        PurchaseOrder po = purchaseOrderRepository.findById(id)
+            .orElseThrow(() -> new EntityNotFoundException("PO를 찾을 수 없습니다: " + id));
+
+        // 이 PO에 딸린 스티커 요청/대사 결과부터 지워야 FK 제약에 안 걸리고,
+        // PoLine/PoLineSize는 PurchaseOrder.poLines의 cascade+orphanRemoval로 자동 삭제된다.
+        stickerRequestRepository.deleteByPurchaseOrder(po);
+        reconciliationResultRepository.deleteByPoLineIn(po.getPoLines());
+        purchaseOrderRepository.delete(po);
     }
 
     private Customer findOrCreateHouseCustomer() {
