@@ -18,6 +18,22 @@ const STATUS_PROGRESS: Record<string, number> = {
   RECEIVED: 10, IN_REVIEW: 30, RECONCILED: 60, MISMATCH: 50, SHIPPED: 90, CLOSED: 100,
 };
 
+interface ProgramOption { id: number; brand: string; styleCode: string; styleName: string | null; season: string | null }
+interface CustomerOption { id: number; code: string; name: string }
+interface PoLineForm { team: string; player: string; sizesText: string }
+
+function parseSizesText(text: string): { sizeCode: string; qty: number }[] {
+  return text
+    .split(",")
+    .map((chunk) => chunk.trim())
+    .filter(Boolean)
+    .map((chunk) => {
+      const [sizeCode, qtyRaw] = chunk.split(":").map((s) => s.trim());
+      return { sizeCode, qty: Number(qtyRaw) };
+    })
+    .filter((s) => s.sizeCode && Number.isFinite(s.qty) && s.qty >= 0);
+}
+
 export function POManagementPage() {
   const [pos, setPos] = useState<PurchaseOrderSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -34,6 +50,14 @@ export function POManagementPage() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [programs, setPrograms] = useState<ProgramOption[]>([]);
+  const [customers, setCustomers] = useState<CustomerOption[]>([]);
+  const [creating, setCreating] = useState(false);
+  const [createSubmitting, setCreateSubmitting] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [createForm, setCreateForm] = useState({ poNumber: "", programId: "", customerId: "", dlvyDate: "", transportMethod: "UNASSIGNED" });
+  const [lines, setLines] = useState<PoLineForm[]>([{ team: "", player: "", sizesText: "" }]);
+
   const loadPurchaseOrders = () => {
     setLoading(true);
     setLoadError(null);
@@ -49,7 +73,53 @@ export function POManagementPage() {
 
   useEffect(() => {
     loadPurchaseOrders();
+    apiFetch("/api/programs").then((r) => (r.ok ? r.json() : [])).then(setPrograms).catch(() => {});
+    apiFetch("/api/customers").then((r) => (r.ok ? r.json() : [])).then(setCustomers).catch(() => {});
   }, []);
+
+  const resetCreateForm = () => {
+    setCreateForm({ poNumber: "", programId: "", customerId: "", dlvyDate: "", transportMethod: "UNASSIGNED" });
+    setLines([{ team: "", player: "", sizesText: "" }]);
+  };
+
+  const submitCreate = async () => {
+    setCreateError(null);
+    if (!createForm.poNumber.trim() || !createForm.programId) {
+      setCreateError("PO 번호와 스타일은 필수입니다.");
+      return;
+    }
+    const linePayloads = lines.map((l) => ({ team: l.team || null, player: l.player || null, sizes: parseSizesText(l.sizesText) }));
+    if (linePayloads.some((l) => l.sizes.length === 0)) {
+      setCreateError("각 라인마다 '사이즈:수량' 형식으로 최소 1개 이상 입력하세요 (예: S:100, M:150).");
+      return;
+    }
+    setCreateSubmitting(true);
+    try {
+      const res = await apiFetch("/api/po", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          poNumber: createForm.poNumber.trim(),
+          programId: Number(createForm.programId),
+          customerId: createForm.customerId ? Number(createForm.customerId) : null,
+          dlvyDate: createForm.dlvyDate || null,
+          transportMethod: createForm.transportMethod,
+          lines: linePayloads,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.message ?? `등록 실패 (${res.status})`);
+      }
+      setCreating(false);
+      resetCreateForm();
+      loadPurchaseOrders();
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : "등록 중 오류가 발생했습니다.");
+    } finally {
+      setCreateSubmitting(false);
+    }
+  };
 
   const brands = useMemo(() => ["전체", ...Array.from(new Set(pos.map((p) => p.brand))).sort()], [pos]);
   const seasons = useMemo(() => ["전체", ...Array.from(new Set(pos.map((p) => p.season))).sort()], [pos]);
@@ -119,7 +189,8 @@ export function POManagementPage() {
               <button className="h-8 px-3 bg-white border border-[#E2E8F0] rounded-lg text-[12px] text-[#64748B] flex items-center gap-1.5 hover:bg-[#F8FAFC] transition-colors">
                 <Download className="w-3.5 h-3.5" />엑셀 내보내기
               </button>
-              <button className="h-8 px-3 bg-[#2563EB] hover:bg-[#1D4ED8] text-white rounded-lg text-[12px] font-medium flex items-center gap-1.5 transition-colors">
+              <button onClick={() => { setCreating((v) => !v); setCreateError(null); }}
+                className="h-8 px-3 bg-[#2563EB] hover:bg-[#1D4ED8] text-white rounded-lg text-[12px] font-medium flex items-center gap-1.5 transition-colors">
                 <Plus className="w-3.5 h-3.5" />PO 등록
               </button>
             </div>
@@ -127,6 +198,64 @@ export function POManagementPage() {
               <div className="mt-2.5 text-[11px] text-red-600 bg-red-50 border border-red-100 rounded-lg px-2.5 py-1.5">{uploadError}</div>
             )}
           </div>
+
+          {creating && (
+            <div className="bg-white rounded-xl border border-[#E2E8F0] p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-[13px] font-semibold text-[#0F172A]">PO 수동 등록</h3>
+                <button onClick={() => setCreating(false)} className="text-[#94A3B8] hover:text-[#64748B]"><X className="w-4 h-4" /></button>
+              </div>
+              {createError && <div className="text-[11px] text-red-600 bg-red-50 border border-red-100 rounded-lg px-2.5 py-1.5">{createError}</div>}
+              <div className="grid grid-cols-3 gap-3">
+                <input placeholder="PO 번호 *" value={createForm.poNumber} onChange={(e) => setCreateForm({ ...createForm, poNumber: e.target.value })}
+                  className="h-9 bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg px-3 text-[12px] focus:outline-none focus:border-[#2563EB]" />
+                <select value={createForm.programId} onChange={(e) => setCreateForm({ ...createForm, programId: e.target.value })}
+                  className="h-9 bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg px-3 text-[12px] focus:outline-none focus:border-[#2563EB]">
+                  <option value="">스타일 선택 *</option>
+                  {programs.map((p) => <option key={p.id} value={p.id}>{p.styleCode} ({p.brand})</option>)}
+                </select>
+                <select value={createForm.customerId} onChange={(e) => setCreateForm({ ...createForm, customerId: e.target.value })}
+                  className="h-9 bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg px-3 text-[12px] focus:outline-none focus:border-[#2563EB]">
+                  <option value="">거래처 (미선택 시 HOUSE)</option>
+                  {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                <input type="date" value={createForm.dlvyDate} onChange={(e) => setCreateForm({ ...createForm, dlvyDate: e.target.value })}
+                  className="h-9 bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg px-3 text-[12px] focus:outline-none focus:border-[#2563EB]" />
+                <select value={createForm.transportMethod} onChange={(e) => setCreateForm({ ...createForm, transportMethod: e.target.value })}
+                  className="h-9 bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg px-3 text-[12px] focus:outline-none focus:border-[#2563EB]">
+                  <option value="UNASSIGNED">운송방식 미정</option>
+                  <option value="AIR">AIR</option>
+                  <option value="BOAT">BOAT</option>
+                  <option value="SPLIT">SPLIT</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <div className="text-[11px] font-semibold text-[#64748B]">라인 (팀/플레이어 · 사이즈별 수량)</div>
+                {lines.map((line, i) => (
+                  <div key={i} className="grid grid-cols-[1fr_1fr_2fr_auto] gap-2 items-center">
+                    <input placeholder="팀 (선택)" value={line.team} onChange={(e) => setLines(lines.map((l, li) => (li === i ? { ...l, team: e.target.value } : l)))}
+                      className="h-9 bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg px-3 text-[12px] focus:outline-none focus:border-[#2563EB]" />
+                    <input placeholder="플레이어 (선택)" value={line.player} onChange={(e) => setLines(lines.map((l, li) => (li === i ? { ...l, player: e.target.value } : l)))}
+                      className="h-9 bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg px-3 text-[12px] focus:outline-none focus:border-[#2563EB]" />
+                    <input placeholder="사이즈:수량 (예: S:100, M:150, L:80)" value={line.sizesText} onChange={(e) => setLines(lines.map((l, li) => (li === i ? { ...l, sizesText: e.target.value } : l)))}
+                      className="h-9 bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg px-3 text-[12px] font-mono focus:outline-none focus:border-[#2563EB]" />
+                    <button onClick={() => setLines(lines.filter((_, li) => li !== i))} disabled={lines.length === 1}
+                      className="w-9 h-9 rounded-lg border border-[#E2E8F0] flex items-center justify-center text-[#94A3B8] hover:text-red-500 disabled:opacity-30">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+                <button onClick={() => setLines([...lines, { team: "", player: "", sizesText: "" }])}
+                  className="text-[11px] text-[#2563EB] hover:underline flex items-center gap-1"><Plus className="w-3 h-3" />라인 추가</button>
+              </div>
+
+              <button onClick={submitCreate} disabled={createSubmitting}
+                className="h-9 px-4 bg-[#2563EB] hover:bg-[#1D4ED8] disabled:bg-blue-300 text-white rounded-lg text-[13px] font-medium flex items-center gap-2">
+                {createSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}등록
+              </button>
+            </div>
+          )}
 
           <div className="bg-white rounded-xl border border-[#E2E8F0] overflow-hidden">
             <div className="overflow-x-auto">

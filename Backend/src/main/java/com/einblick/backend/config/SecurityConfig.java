@@ -40,7 +40,11 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**", "/actuator/**").permitAll()
+                        // /error는 컨트롤러에서 sendError()로 끝나는 예외(@Valid 검증 실패 등)가
+                        // 컨테이너에 의해 내부적으로 다시 디스패치되는 경로. JwtAuthenticationFilter는
+                        // shouldNotFilterErrorDispatch()가 기본 true라 이 재디스패치에서 재인증을 하지
+                        // 않으므로, permitAll이 없으면 원래 의도한 4xx 대신 빈 본문의 403이 내려간다.
+                        .requestMatchers("/api/auth/**", "/actuator/**", "/error").permitAll()
                         .requestMatchers("/api/users/**").hasAuthority("ROLE_ADMIN")
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
