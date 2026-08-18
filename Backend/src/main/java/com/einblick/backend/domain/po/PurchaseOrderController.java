@@ -28,9 +28,22 @@ public class PurchaseOrderController {
             .toList();
     }
 
+    @GetMapping("/{id}")
+    public PurchaseOrderDetailResponse detail(@PathVariable Long id) {
+        PurchaseOrder po = purchaseOrderRepository.findById(id)
+            .orElseThrow(() -> new EntityNotFoundException("PO를 찾을 수 없습니다: " + id));
+        return PurchaseOrderDetailResponse.from(po);
+    }
+
     @PostMapping
     public ResponseEntity<PurchaseOrderSummaryResponse> create(@Valid @RequestBody PoCreateRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(purchaseOrderService.create(request));
+    }
+
+    // PDF 파싱에서 놓친 라인을 사용자가 페이지 번호 보고 수동으로 채워 넣을 때 쓰는 엔드포인트.
+    @PostMapping("/{id}/lines")
+    public PurchaseOrderDetailResponse addLine(@PathVariable Long id, @Valid @RequestBody PoLineCreateRequest request) {
+        return purchaseOrderService.addLine(id, request);
     }
 
     @DeleteMapping("/{id}")

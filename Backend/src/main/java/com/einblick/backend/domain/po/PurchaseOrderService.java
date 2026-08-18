@@ -82,6 +82,30 @@ public class PurchaseOrderService {
         return PurchaseOrderSummaryResponse.from(purchaseOrderRepository.save(po));
     }
 
+    // PDF 파싱에서 누락된 라인을 사용자가 페이지 번호를 보고 수동으로 채워 넣을 때 쓴다.
+    @Transactional
+    public PurchaseOrderDetailResponse addLine(Long poId, PoLineCreateRequest request) {
+        PurchaseOrder po = purchaseOrderRepository.findById(poId)
+            .orElseThrow(() -> new EntityNotFoundException("PO를 찾을 수 없습니다: " + poId));
+
+        int lineTotal = request.sizes().stream().mapToInt(PoLineSizeCreateRequest::qty).sum();
+        PoLine poLine = PoLine.builder()
+            .team(request.team())
+            .player(request.player())
+            .totalQty(lineTotal)
+            .build();
+        for (PoLineSizeCreateRequest sizeRequest : request.sizes()) {
+            poLine.addSize(PoLineSize.builder()
+                .sizeCode(sizeRequest.sizeCode())
+                .qty(sizeRequest.qty())
+                .build());
+        }
+        po.addPoLine(poLine);
+        po.recalculateTotalQty();
+
+        return PurchaseOrderDetailResponse.from(purchaseOrderRepository.save(po));
+    }
+
     @Transactional
     public void delete(Long id) {
         PurchaseOrder po = purchaseOrderRepository.findById(id)

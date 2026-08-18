@@ -21,6 +21,13 @@ const STATUS_PROGRESS: Record<string, number> = {
 interface ProgramOption { id: number; brand: string; styleCode: string; styleName: string | null; season: string | null }
 interface CustomerOption { id: number; code: string; name: string }
 interface PoLineForm { team: string; player: string; sizesText: string }
+interface UnparsedLine { poNumber: string; page: number; text: string }
+interface PoDetailSize { sizeCode: string; qty: number }
+interface PoDetailLine { id: number; team: string | null; player: string | null; totalQty: number; sizes: PoDetailSize[] }
+interface PoDetail {
+  id: number; poNumber: string; styleCode: string; brand: string; customerName: string; season: string | null;
+  status: string; dlvyDate: string | null; transportMethod: string; totalQty: number; lines: PoDetailLine[];
+}
 
 function parseSizesText(text: string): { sizeCode: string; qty: number }[] {
   return text
@@ -49,11 +56,19 @@ export function POManagementPage() {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadNotice, setUploadNotice] = useState<string | null>(null);
+  const [unparsedLines, setUnparsedLines] = useState<UnparsedLine[]>([]);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [detail, setDetail] = useState<PoDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [addingLine, setAddingLine] = useState(false);
+  const [addLineForm, setAddLineForm] = useState<PoLineForm>({ team: "", player: "", sizesText: "" });
+  const [addLineSubmitting, setAddLineSubmitting] = useState(false);
+  const [addLineError, setAddLineError] = useState<string | null>(null);
 
   const [programs, setPrograms] = useState<ProgramOption[]>([]);
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
@@ -81,6 +96,54 @@ export function POManagementPage() {
     apiFetch("/api/programs").then((r) => (r.ok ? r.json() : [])).then(setPrograms).catch(() => {});
     apiFetch("/api/customers").then((r) => (r.ok ? r.json() : [])).then(setCustomers).catch(() => {});
   }, []);
+
+  const loadDetail = (poId: number) => {
+    setDetailLoading(true);
+    apiFetch(`/api/po/${poId}`)
+      .then((res) => (res.ok ? (res.json() as Promise<PoDetail>) : Promise.reject(new Error(`PO 상세를 불러오지 못했습니다 (${res.status})`))))
+      .then(setDetail)
+      .catch(() => setDetail(null))
+      .finally(() => setDetailLoading(false));
+  };
+
+  useEffect(() => {
+    setAddingLine(false);
+    setAddLineError(null);
+    setAddLineForm({ team: "", player: "", sizesText: "" });
+    if (selected) loadDetail(selected.id);
+    else setDetail(null);
+  }, [selected]);
+
+  const handleAddLine = async () => {
+    if (!selected) return;
+    setAddLineError(null);
+    const sizes = parseSizesText(addLineForm.sizesText);
+    if (sizes.length === 0) {
+      setAddLineError("'사이즈:수량' 형식으로 최소 1개 이상 입력하세요 (예: S:100, M:150).");
+      return;
+    }
+    setAddLineSubmitting(true);
+    try {
+      const res = await apiFetch(`/api/po/${selected.id}/lines`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ team: addLineForm.team || null, player: addLineForm.player || null, sizes }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.message ?? `라인 추가 실패 (${res.status})`);
+      }
+      const updated: PoDetail = await res.json();
+      setDetail(updated);
+      setAddingLine(false);
+      setAddLineForm({ team: "", player: "", sizesText: "" });
+      loadPurchaseOrders();
+    } catch (err) {
+      setAddLineError(err instanceof Error ? err.message : "라인 추가 중 오류가 발생했습니다.");
+    } finally {
+      setAddLineSubmitting(false);
+    }
+  };
 
   const resetCreateForm = () => {
     setCreateForm({ poNumber: "", programId: "", customerId: "", dlvyDate: "", transportMethod: "UNASSIGNED" });
@@ -215,6 +278,7 @@ export function POManagementPage() {
     setUploading(true);
     setUploadError(null);
     setUploadNotice(null);
+    setUnparsedLines([]);
     try {
       const formData = new FormData();
       formData.append("file", file);
@@ -223,12 +287,19 @@ export function POManagementPage() {
         const body = await res.json().catch(() => null);
         throw new Error(body?.message ?? `업로드 실패 (${res.status})`);
       }
-      const result: { detected: number; succeeded: number; failed: number; failureMessages: string[] } = await res.json();
+      const result: {
+        detected: number; succeeded: number; failed: number; failureMessages: string[];
+        created: { poNumber: string; unparsedLines: { page: number; text: string }[] }[];
+      } = await res.json();
       if (result.detected > 1 || result.failed > 0) {
         const parts = [`PDF에서 PO ${result.detected}건 감지, ${result.succeeded}건 등록 완료`];
         if (result.failed > 0) parts.push(`${result.failed}건 실패 (${result.failureMessages.join(", ")})`);
         setUploadNotice(parts.join(" · "));
       }
+      const flagged = result.created.flatMap((po) =>
+        po.unparsedLines.map((u) => ({ poNumber: po.poNumber, page: u.page, text: u.text }))
+      );
+      setUnparsedLines(flagged);
       loadPurchaseOrders();
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : "업로드 중 오류가 발생했습니다.");
@@ -278,6 +349,18 @@ export function POManagementPage() {
             )}
             {uploadNotice && (
               <div className="mt-2.5 text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-1.5">{uploadNotice}</div>
+            )}
+            {unparsedLines.length > 0 && (
+              <div className="mt-2.5 text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-2 space-y-1.5">
+                <div className="font-medium flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" />PDF에서 인식하지 못한 줄이 있습니다 ({unparsedLines.length}건) - PDF 원본에서 해당 페이지를 확인하고, 아래 PO를 선택해 "라인 추가"로 직접 등록해주세요.</div>
+                <div className="max-h-32 overflow-y-auto space-y-1">
+                  {unparsedLines.map((u, i) => (
+                    <div key={i} className="text-[10px] text-amber-600 font-mono bg-white/60 rounded px-2 py-1">
+                      [{u.poNumber} · {u.page}페이지] {u.text}
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
 
@@ -479,6 +562,50 @@ export function POManagementPage() {
                     <span className="text-[11px] text-[#94A3B8]">{selected.poNumber}.pdf</span>
                     <button className="text-[11px] text-[#2563EB] hover:underline flex items-center gap-1"><Eye className="w-3 h-3" />미리보기</button>
                   </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[11px] font-semibold text-[#64748B]">라인 상세 (팀/플레이어 · 사이즈별 수량)</span>
+                    <button onClick={() => setAddingLine((v) => !v)} className="text-[11px] text-[#2563EB] hover:underline flex items-center gap-1">
+                      <Plus className="w-3 h-3" />라인 추가
+                    </button>
+                  </div>
+                  {detailLoading && <div className="text-[11px] text-[#94A3B8] py-2">불러오는 중...</div>}
+                  {!detailLoading && detail && detail.lines.length === 0 && (
+                    <div className="text-[11px] text-[#94A3B8] py-2">등록된 라인이 없습니다.</div>
+                  )}
+                  {!detailLoading && detail && detail.lines.length > 0 && (
+                    <div className="space-y-1.5">
+                      {detail.lines.map((line) => (
+                        <div key={line.id} className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg px-2.5 py-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[12px] font-medium text-[#0F172A]">{[line.team, line.player].filter(Boolean).join(" · ") || "-"}</span>
+                            <span className="text-[11px] text-[#64748B] tabular-nums">{line.totalQty.toLocaleString()}개</span>
+                          </div>
+                          <div className="text-[10px] text-[#94A3B8] mt-1 font-mono">
+                            {line.sizes.map((s) => `${s.sizeCode}:${s.qty}`).join(", ")}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {addingLine && (
+                    <div className="mt-2 bg-white border border-[#E2E8F0] rounded-lg p-2.5 space-y-2">
+                      {addLineError && <div className="text-[11px] text-red-600 bg-red-50 border border-red-100 rounded-lg px-2 py-1">{addLineError}</div>}
+                      <input placeholder="팀 (선택)" value={addLineForm.team} onChange={(e) => setAddLineForm({ ...addLineForm, team: e.target.value })}
+                        className="w-full h-8 bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg px-2.5 text-[12px] focus:outline-none focus:border-[#2563EB]" />
+                      <input placeholder="플레이어 (선택)" value={addLineForm.player} onChange={(e) => setAddLineForm({ ...addLineForm, player: e.target.value })}
+                        className="w-full h-8 bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg px-2.5 text-[12px] focus:outline-none focus:border-[#2563EB]" />
+                      <input placeholder="사이즈:수량 (예: S:100, M:150)" value={addLineForm.sizesText} onChange={(e) => setAddLineForm({ ...addLineForm, sizesText: e.target.value })}
+                        className="w-full h-8 bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg px-2.5 text-[12px] font-mono focus:outline-none focus:border-[#2563EB]" />
+                      <button onClick={handleAddLine} disabled={addLineSubmitting}
+                        className="h-8 px-3 bg-[#2563EB] hover:bg-[#1D4ED8] disabled:bg-blue-300 text-white rounded-lg text-[11px] font-medium flex items-center gap-1.5">
+                        {addLineSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}추가
+                      </button>
+                    </div>
+                  )}
                 </div>
               </>
             )}

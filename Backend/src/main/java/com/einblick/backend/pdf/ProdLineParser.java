@@ -3,12 +3,15 @@ package com.einblick.backend.pdf;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
  * PO PDF "Prod Line Details" 테이블 파서.
  *
  * 전제: PDFBox PDFTextStripper.setSortByPosition(true)로 추출한 텍스트를 입력으로 받음.
+ * 페이지 경계는 PoPdfImportService가 pageMarker(n)으로 찍어 넣은 마커 줄로 구분한다 - 파싱에
+ * 실패한 줄이 원본 PDF 몇 페이지에 있었는지 사용자에게 알려주기 위함(수동 등록 시 참고용).
  *
  * 실제 발주서에서 확인된 특징:
  * - HTS 코드(10자리 숫자)는 항상 있고, 그 바로 앞 토큰이 수량(정수)이다 -> 이 둘을 오른쪽에서부터
@@ -35,6 +38,17 @@ public class ProdLineParser {
     private static final Pattern ANY_DIGIT = Pattern.compile(".*\\d.*");
     private static final int PREFIX_TOKEN_COUNT = 6; // 스타일코드 + 팀명(2) + 고객코드(1) + 컬러(2)
 
+    // PoPdfImportService가 페이지 경계에 심어두는 마커 줄. 실제 PDF 본문 텍스트와 겹칠 일이
+    // 없도록 흔치 않은 토큰(EINBLICKPAGEMARKER)으로 감싼다.
+    private static final String MARKER_TAG = "EINBLICKPAGEMARKER";
+    private static final Pattern PAGE_MARKER = Pattern.compile("^" + MARKER_TAG + "(\\d+)" + MARKER_TAG + "$");
+    // 페이지 하단 "Page 3 Of 8" 같은 반복 문구 - 데이터 행이 아니라 매 페이지 나오는 노이즈라 제외.
+    private static final Pattern PAGE_FOOTER = Pattern.compile("(?i)^Page\\s+\\d+\\s+Of\\s+\\d+.*");
+
+    public static String pageMarker(int pageNumber) {
+        return MARKER_TAG + pageNumber + MARKER_TAG;
+    }
+
     public record ProdLineRow(
         String styleCode,
         String team,
@@ -47,17 +61,39 @@ public class ProdLineParser {
         String description
     ) {}
 
-    public List<ProdLineRow> parse(String extractedText) {
+    // 파싱 못 한(=HTS/사이즈 앵커를 못 찾은) 줄 중, 숫자가 섞여 있어 데이터 행이었을 가능성이
+    // 있는 것만 후보로 모은다. 완벽한 판별은 불가능하므로 "확인해볼 만한 줄" 정도로 취급할 것.
+    public record SkippedLine(int page, String text) {}
+
+    public record ParseResult(List<ProdLineRow> rows, List<SkippedLine> skipped) {}
+
+    public ParseResult parse(String extractedText) {
         List<ProdLineRow> result = new ArrayList<>();
+        List<SkippedLine> skipped = new ArrayList<>();
         String[] lines = extractedText.split("\n");
+        int currentPage = 0;
 
         for (String rawLine : lines) {
-            String[] tokens = tokenize(rawLine.trim());
+            String trimmed = rawLine.trim();
+            Matcher markerM = PAGE_MARKER.matcher(trimmed);
+            if (markerM.matches()) {
+                currentPage = Integer.parseInt(markerM.group(1));
+                continue;
+            }
+            if (trimmed.isEmpty()) continue;
+
+            String[] tokens = tokenize(trimmed);
             int htsIdx = findHtsIndex(tokens);
-            if (htsIdx < 0) continue;
+            if (htsIdx < 0) {
+                addIfLooksLikeData(skipped, currentPage, trimmed, tokens);
+                continue;
+            }
 
             int sizeIdx = findSizeIndex(tokens, htsIdx);
-            if (sizeIdx < 0) continue;
+            if (sizeIdx < 0) {
+                addIfLooksLikeData(skipped, currentPage, trimmed, tokens);
+                continue;
+            }
 
             int qty = Integer.parseInt(tokens[htsIdx - 1]);
             String hts = tokens[htsIdx];
@@ -85,7 +121,17 @@ public class ProdLineParser {
 
             result.add(new ProdLineRow(styleCode, team, customerCode, color, sizeCode, upc, qty, hts, desc));
         }
-        return result;
+        return new ParseResult(result, skipped);
+    }
+
+    // 숫자가 하나도 없는 줄(설명 텍스트, 헤더 등)이나 페이지 하단 "Page N Of M" 문구는 제외하고,
+    // 그 외에 토큰이 3개 이상이면서 숫자가 섞인 줄만 "혹시 놓친 데이터 행일 수 있음" 후보로 남긴다.
+    // 완벽한 판별기가 아니라 사용자가 페이지를 열어 직접 확인하라는 참고용 신호다.
+    private void addIfLooksLikeData(List<SkippedLine> skipped, int page, String trimmed, String[] tokens) {
+        if (tokens.length < 3) return;
+        if (PAGE_FOOTER.matcher(trimmed).matches()) return;
+        if (!ANY_DIGIT.matcher(trimmed).matches()) return;
+        skipped.add(new SkippedLine(page, trimmed));
     }
 
     private String[] tokenize(String line) {

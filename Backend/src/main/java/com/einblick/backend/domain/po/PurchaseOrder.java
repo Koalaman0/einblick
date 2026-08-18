@@ -82,6 +82,11 @@ public class PurchaseOrder {
         poLine.assignPurchaseOrder(this);
     }
 
+    // PDF에서 놓친 라인을 나중에 수동으로 추가할 때(PO 생성 후) totalQty 캐시를 다시 맞춘다.
+    public void recalculateTotalQty() {
+        this.totalQty = poLines.stream().mapToInt(PoLine::getTotalQty).sum();
+    }
+
     public void registerShipment(LocalDate dlvyDate, TransportMethod transportMethod) {
         this.dlvyDate = dlvyDate;
         this.transportMethod = transportMethod;

@@ -49,9 +49,9 @@ public class PoPdfImportService {
                 if (segment.dataIsEmpty()) {
                     throw new PoPdfParseException("사이즈별 수량 데이터 페이지(PACKING/UPC INFO)를 찾지 못했습니다.");
                 }
-                created.add(PoImportResponse.from(
-                    poImportUnitService.importOne(segment.headerPageText(), segment.dataPagesText())
-                ));
+                PoImportUnitService.Result importResult =
+                    poImportUnitService.importOne(segment.headerPageText(), segment.dataPagesText());
+                created.add(PoImportResponse.from(importResult.purchaseOrder(), importResult.skippedLines()));
             } catch (PoPdfParseException e) {
                 failures.add(label + e.getMessage());
             } catch (DataIntegrityViolationException e) {
@@ -92,7 +92,7 @@ public class PoPdfImportService {
                         current = new PoSegment(null);
                         segments.add(current);
                     }
-                    current.appendData(pageText);
+                    current.appendData(pageNum, pageText);
                 }
             }
         } catch (IOException e) {
@@ -121,7 +121,10 @@ public class PoPdfImportService {
             return headerPageText;
         }
 
-        void appendData(String text) {
+        // 매 페이지 시작에 페이지 번호 마커를 심어서, ProdLineParser가 놓친 줄을 원본 PDF 몇 페이지
+        // 것인지 알 수 있게 한다 (수동 등록 시 사용자에게 안내하는 용도).
+        void appendData(int pageNumber, String text) {
+            dataPagesText.append(ProdLineParser.pageMarker(pageNumber)).append("\n");
             dataPagesText.append(text).append("\n");
         }
 

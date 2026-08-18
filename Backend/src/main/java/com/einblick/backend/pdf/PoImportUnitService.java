@@ -40,8 +40,12 @@ public class PoImportUnitService {
         this.customerRepository = customerRepository;
     }
 
+    // PDF 파싱으로 만든 PO와, 파싱하다 놓친 것으로 의심되는 줄(페이지 번호 포함) 목록을 같이 반환한다.
+    // 놓친 줄은 저장을 막지는 않고 사용자가 확인 후 PO 상세에서 수동으로 라인을 추가할 수 있게 알려주는 용도.
+    public record Result(PurchaseOrder purchaseOrder, List<ProdLineParser.SkippedLine> skippedLines) {}
+
     @Transactional
-    public PurchaseOrder importOne(String headerPageText, String dataPagesText) {
+    public Result importOne(String headerPageText, String dataPagesText) {
         PoHeaderParser.PoHeader header = headerParser.parse(headerPageText);
         if (header.poNumber() == null) {
             throw new PoPdfParseException("PO NUMBER를 PDF에서 추출하지 못했습니다. 템플릿 형식을 확인해주세요.");
@@ -50,7 +54,8 @@ public class PoImportUnitService {
             throw new PoPdfParseException("이미 등록된 PO입니다: " + header.poNumber());
         }
 
-        List<ProdLineParser.ProdLineRow> rows = prodLineParser.parse(dataPagesText);
+        ProdLineParser.ParseResult parseResult = prodLineParser.parse(dataPagesText);
+        List<ProdLineParser.ProdLineRow> rows = parseResult.rows();
         if (rows.isEmpty()) {
             throw new PoPdfParseException("사이즈별 수량 정보를 추출하지 못했습니다.");
         }
@@ -102,7 +107,7 @@ public class PoImportUnitService {
             po.addPoLine(poLine);
         }
 
-        return purchaseOrderRepository.save(po);
+        return new Result(purchaseOrderRepository.save(po), parseResult.skipped());
     }
 
     private Program findOrCreateProgram(PoHeaderParser.PoHeader header) {
