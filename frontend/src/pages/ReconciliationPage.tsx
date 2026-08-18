@@ -1,5 +1,5 @@
-import { useEffect, useState, type ElementType } from "react";
-import { RefreshCw, CheckCircle, XCircle, AlertTriangle, AlertCircle, FileDown, Loader2 } from "lucide-react";
+import { useEffect, useRef, useState, type ChangeEvent, type ElementType } from "react";
+import { RefreshCw, CheckCircle, XCircle, AlertTriangle, AlertCircle, FileDown, FileUp, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiFetch } from "@/lib/apiConfig";
 
@@ -39,6 +39,10 @@ export function ReconciliationPage() {
   const [hasRun, setHasRun] = useState(false);
   const [downloadingReport, setDownloadingReport] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
+  const [uploadingAssort, setUploadingAssort] = useState(false);
+  const [assortUploadError, setAssortUploadError] = useState<string | null>(null);
+  const [assortUploadNotice, setAssortUploadNotice] = useState<string | null>(null);
+  const assortFileInputRef = useRef<HTMLInputElement>(null);
 
   const loadResults = () => {
     setLoading(true);
@@ -97,6 +101,33 @@ export function ReconciliationPage() {
     }
   };
 
+  const handleAssortFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    setUploadingAssort(true);
+    setAssortUploadError(null);
+    setAssortUploadNotice(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await apiFetch("/api/assort/upload", { method: "POST", body: formData });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.message ?? `업로드 실패 (${res.status})`);
+      }
+      const result: { rowsRead: number; created: number; skippedRows: number } = await res.json();
+      const parts = [`엑셀 ${result.rowsRead}행 읽음, ASSORT ${result.created}건 생성`];
+      if (result.skippedRows > 0) parts.push(`${result.skippedRows}행 건너뜀`);
+      setAssortUploadNotice(parts.join(" · "));
+    } catch (err) {
+      setAssortUploadError(err instanceof Error ? err.message : "업로드 중 오류가 발생했습니다.");
+    } finally {
+      setUploadingAssort(false);
+    }
+  };
+
   const counts = {
     ok: results.filter((r) => r.status === "OK").length,
     mismatch: results.filter((r) => r.status === "QTY_MISMATCH").length,
@@ -114,6 +145,12 @@ export function ReconciliationPage() {
           <p className="text-[11px] text-[#64748B] mt-0.5">PO 데이터와 ASSORT 데이터를 자동으로 비교합니다</p>
         </div>
         <div className="flex items-center gap-2">
+          <input ref={assortFileInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleAssortFileChange} />
+          <button onClick={() => assortFileInputRef.current?.click()} disabled={uploadingAssort}
+            className="h-9 px-4 bg-white border border-[#E2E8F0] hover:bg-[#F8FAFC] disabled:opacity-50 text-[#0F172A] rounded-lg text-[13px] font-medium flex items-center gap-2 transition-colors">
+            {uploadingAssort ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileUp className="w-4 h-4" />}
+            ASSORT 엑셀 업로드
+          </button>
           {hasRun && (
             <button onClick={handleDownloadReport} disabled={downloadingReport}
               className="h-9 px-4 bg-white border border-[#E2E8F0] hover:bg-[#F8FAFC] disabled:opacity-50 text-[#0F172A] rounded-lg text-[13px] font-medium flex items-center gap-2 transition-colors">
@@ -134,6 +171,12 @@ export function ReconciliationPage() {
       )}
       {reportError && (
         <div className="text-[12px] text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{reportError}</div>
+      )}
+      {assortUploadError && (
+        <div className="text-[12px] text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{assortUploadError}</div>
+      )}
+      {assortUploadNotice && (
+        <div className="text-[12px] text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2">{assortUploadNotice}</div>
       )}
 
       {!loading && !error && !hasRun && (

@@ -6,4 +6,5 @@ import java.util.Optional;
 
 public interface ProgramRepository extends JpaRepository<Program, Long> {
     Optional<Program> findByStyleCodeAndSeason(String styleCode, String season);
+    Optional<Program> findFirstByStyleCode(String styleCode);
 }
