@@ -23,8 +23,11 @@ import java.util.stream.Collectors;
 // PoLine <-> Assort를 같은 Program + team + player끼리 짝지어 totalQty를 비교한다.
 // team/player 조합이 프로그램당 1개씩만 있다고 가정하며, 중복이 있으면 먼저 발견된 것만 사용한다.
 // 수량 비교 외에, ERP 업무 규칙 명세서(v2)에 정리된 검증 로직 중 기존 데이터만으로 확인 가능한
-// 항목(RATIO 정합성, 고객사별 패킹정보 마스터 대비 이탈, STY 세그먼트-PLAYER 일치)도 함께 확인해
-// 문제가 있으면 NEEDS_REVIEW로 표시하고 note에 사유를 남긴다.
+// 항목(RATIO 정합성, 고객사별 패킹정보 마스터 대비 이탈)도 함께 확인해 문제가 있으면 NEEDS_REVIEW로
+// 표시하고 note에 사유를 남긴다.
+// (STY 세그먼트-PLAYER 일치 검증은 실제 데이터로 시도했다가 제거함 - PDF 파싱이 선수명을 TEAM
+// 필드에만 넣고 PLAYER는 항상 공란으로 저장해서, 이 검증은 실사용에서 거의 모든 선수 라인을
+// 오탐으로 판정했다. PLAYER를 실제로 채우는 파싱 로직이 생기기 전까지는 재도입하지 않는다.)
 @Service
 public class ReconciliationService {
 
@@ -105,9 +108,6 @@ public class ReconciliationService {
         }
 
         List<String> notes = new ArrayList<>();
-        if (poLine != null) {
-            addIfPresent(notes, validateStySegment(poLine));
-        }
         if (assort != null) {
             notes.addAll(validatePackingInfo(assort));
         }
@@ -130,25 +130,6 @@ public class ReconciliationService {
     // CUSTOMER 라벨이 공란이면 HOUSE로 자동 매칭된 것으로 간주한다.
     private boolean isHouseAlias(String customerLabel) {
         return customerLabel == null || customerLabel.isBlank();
-    }
-
-    // STY 세그먼트(B=블랭크/P,S=선수용)와 PLAYER 필드의 공란 여부가 일치하는지 확인한다.
-    private String validateStySegment(PoLine poLine) {
-        String styleCode = poLine.getPurchaseOrder().getProgram().getStyleCode();
-        StyleCodeDecoder.Decoded decoded = StyleCodeDecoder.decode(styleCode);
-        if (decoded == null) {
-            return null;
-        }
-        boolean playerBlank = isBlankPlayer(poLine.getPlayer());
-        if (playerBlank != decoded.expectsBlankPlayer()) {
-            return "STY 세그먼트(" + decoded.segment() + ")가 PLAYER 값과 맞지 않습니다 (PLAYER="
-                + (poLine.getPlayer() == null || poLine.getPlayer().isBlank() ? "-" : poLine.getPlayer()) + ")";
-        }
-        return null;
-    }
-
-    private boolean isBlankPlayer(String player) {
-        return player == null || player.isBlank() || "BLANK".equalsIgnoreCase(player.trim());
     }
 
     // RATIO 정합성 + 고객사 패킹정보 마스터 대비 이탈을 확인한다.

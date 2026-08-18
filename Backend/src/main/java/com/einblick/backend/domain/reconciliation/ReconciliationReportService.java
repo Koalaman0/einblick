@@ -144,12 +144,12 @@ public class ReconciliationReportService {
         addBullet(doc, "RATIO가 기재된 건은 실제 사이즈별 수량을 GCD로 약분한 값과 일치하는지 확인했습니다.");
         addBullet(doc, "ASSORT/SOLID 구분에 따라 RATIO 기재 여부(ASSORT=필수, SOLID=공란)를 확인했습니다.");
         addBullet(doc, "ASSORT/SOLID·CARTON 값을 고객사 패킹정보 마스터의 표준값과 대조했습니다.");
-        addBullet(doc, "STY 코드의 세그먼트(B/P/S)와 PLAYER 필드의 공란 여부가 일치하는지 확인했습니다.");
     }
 
     private void addNotesSection(XWPFDocument doc) {
         addHeading(doc, "5. 참고사항");
-        addBullet(doc, "STY 세그먼트 검증은 실제 운영 STY 코드로 충분히 검증되지 않았으므로 참고용으로만 활용하시기 바랍니다.");
+        addBullet(doc, "STY 세그먼트(B/P/S)-PLAYER 일치 검증은 이번 버전에 포함되지 않습니다 - PDF 파싱이 선수명을 TEAM "
+            + "필드에만 기록하고 PLAYER는 채우지 않아, 검증을 시도했을 때 실제 선수 라인 대부분이 오탐으로 잡혔습니다.");
         addBullet(doc, "STY 리비전 '01' 허용팀 화이트리스트, PACKING/UPC 페이지 고객사명 화이트리스트 매칭, PO 분할/전환 인식, "
             + "시즌/출하수단 스코프 규칙은 이번 버전에 포함되지 않았습니다.");
         addBullet(doc, "이 보고서는 대사 실행(POST /api/reconciliation/run) 시점의 데이터를 기준으로 생성됩니다.");
