@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -192,6 +193,9 @@ public class ReconciliationService {
             .orElse(null);
     }
 
+    // 고객사 마스터의 ASSORT/SOLID처럼 "SOLID/ASSORT" 혼재로 등록된 값은 둘 중 하나만 맞아도
+    // 정상이다 - "/"로 나눠 그 중 하나와 일치하면 통과시킨다 (그 외 필드는 원래 하나의 값만 오므로
+    // 이 분기가 실질적으로 영향을 주지 않는다).
     private String diffField(String label, String actual, String standard) {
         String s = normalize(standard);
         if (s == null) {
@@ -201,7 +205,10 @@ public class ReconciliationService {
         if (a == null) {
             return null; // ASSORT에 미입력이면 별도 표시하지 않는다
         }
-        if (!a.equalsIgnoreCase(s)) {
+        boolean matches = Arrays.stream(s.split("/"))
+            .map(String::trim)
+            .anyMatch(part -> part.equalsIgnoreCase(a));
+        if (!matches) {
             return label + "이(가) 고객사 표준(" + s + ")과 다릅니다 (실제: " + a + ")";
         }
         return null;
