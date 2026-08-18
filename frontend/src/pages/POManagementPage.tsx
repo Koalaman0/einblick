@@ -21,7 +21,7 @@ const STATUS_PROGRESS: Record<string, number> = {
 interface ProgramOption { id: number; brand: string; styleCode: string; styleName: string | null; season: string | null }
 interface CustomerOption { id: number; code: string; name: string }
 interface PoLineForm { team: string; player: string; sizesText: string }
-interface UnparsedLine { poNumber: string; page: number; text: string }
+interface UnparsedSummary { poNumber: string; count: number }
 interface PoDetailSize { sizeCode: string; qty: number }
 interface PoDetailLine { id: number; team: string | null; player: string | null; totalQty: number; sizes: PoDetailSize[] }
 interface PoDetail {
@@ -56,7 +56,7 @@ export function POManagementPage() {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadNotice, setUploadNotice] = useState<string | null>(null);
-  const [unparsedLines, setUnparsedLines] = useState<UnparsedLine[]>([]);
+  const [unparsedSummary, setUnparsedSummary] = useState<UnparsedSummary[]>([]);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -278,7 +278,7 @@ export function POManagementPage() {
     setUploading(true);
     setUploadError(null);
     setUploadNotice(null);
-    setUnparsedLines([]);
+    setUnparsedSummary([]);
     try {
       const formData = new FormData();
       formData.append("file", file);
@@ -296,10 +296,10 @@ export function POManagementPage() {
         if (result.failed > 0) parts.push(`${result.failed}건 실패 (${result.failureMessages.join(", ")})`);
         setUploadNotice(parts.join(" · "));
       }
-      const flagged = result.created.flatMap((po) =>
-        po.unparsedLines.map((u) => ({ poNumber: po.poNumber, page: u.page, text: u.text }))
-      );
-      setUnparsedLines(flagged);
+      const summary = result.created
+        .filter((po) => po.unparsedLines.length > 0)
+        .map((po) => ({ poNumber: po.poNumber, count: po.unparsedLines.length }));
+      setUnparsedSummary(summary);
       loadPurchaseOrders();
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : "업로드 중 오류가 발생했습니다.");
@@ -350,16 +350,11 @@ export function POManagementPage() {
             {uploadNotice && (
               <div className="mt-2.5 text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-1.5">{uploadNotice}</div>
             )}
-            {unparsedLines.length > 0 && (
-              <div className="mt-2.5 text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-2 space-y-1.5">
-                <div className="font-medium flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" />PDF에서 인식하지 못한 줄이 있습니다 ({unparsedLines.length}건) - PDF 원본에서 해당 페이지를 확인하고, 아래 PO를 선택해 "라인 추가"로 직접 등록해주세요.</div>
-                <div className="max-h-32 overflow-y-auto space-y-1">
-                  {unparsedLines.map((u, i) => (
-                    <div key={i} className="text-[10px] text-amber-600 font-mono bg-white/60 rounded px-2 py-1">
-                      [{u.poNumber} · {u.page}페이지] {u.text}
-                    </div>
-                  ))}
-                </div>
+            {unparsedSummary.length > 0 && (
+              <div className="mt-2.5 text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-1.5">
+                <span className="font-medium inline-flex items-center gap-1 mr-1"><AlertTriangle className="w-3.5 h-3.5" />PDF에서 인식하지 못한 줄이 있는 PO:</span>
+                {unparsedSummary.map((u) => `${u.poNumber} (${u.count}건)`).join(", ")}
+                <span className="text-amber-600"> - 아래에서 해당 PO를 선택해 "라인 추가"로 직접 등록해주세요.</span>
               </div>
             )}
           </div>
