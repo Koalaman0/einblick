@@ -42,6 +42,23 @@ public class Assort {
     @Column(name = "SOURCE_FILE", length = 300)
     private String sourceFile;
 
+    // 패킹정보(ASSORT/SOLID·RATIO·POLYBAG·CARTON·HANGER) - 엑셀에 실제로 입력된 값 그대로 저장.
+    // 대사 시 CUSTOMERS의 고객사 마스터 표준값과 비교해 이탈을 잡아낸다.
+    @Column(name = "ASSORT_SOLID", length = 30)
+    private String assortSolid;
+
+    @Column(name = "RATIO", length = 50)
+    private String ratio;
+
+    @Column(name = "POLYBAG", length = 20)
+    private String polybag;
+
+    @Column(name = "CARTON", length = 20)
+    private String carton;
+
+    @Column(name = "HANGER", length = 300)
+    private String hanger;
+
     @OneToMany(mappedBy = "assort", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<AssortSize> sizes = new ArrayList<>();

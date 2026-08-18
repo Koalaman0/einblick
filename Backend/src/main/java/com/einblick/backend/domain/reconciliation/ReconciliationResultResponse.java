@@ -12,7 +12,8 @@ public record ReconciliationResultResponse(
     Integer assortQty,
     int diffQty,
     String status,
-    boolean houseMatched
+    boolean houseMatched,
+    String note
 ) {
     public static ReconciliationResultResponse from(ReconciliationResult r) {
         var poLine = r.getPoLine();
@@ -39,7 +40,8 @@ public record ReconciliationResultResponse(
             assort != null ? assort.getTotalQty() : null,
             r.getDiffQty(),
             r.getStatus().name(),
-            r.getHouseMatched()
+            r.getHouseMatched(),
+            r.getNote()
         );
     }
 }

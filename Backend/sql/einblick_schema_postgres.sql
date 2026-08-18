@@ -21,6 +21,13 @@ CREATE TABLE customers (
                            code            VARCHAR(30) NOT NULL UNIQUE,
                            name            VARCHAR(100) NOT NULL,
                            is_house_alias  BOOLEAN DEFAULT FALSE NOT NULL,
+                           packing_method  VARCHAR(60),
+                           format          VARCHAR(100),
+                           assort_solid    VARCHAR(30),
+                           std_ratio       VARCHAR(50),
+                           std_polybag     VARCHAR(20),
+                           std_carton      VARCHAR(20),
+                           std_hanger      VARCHAR(300),
                            created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
@@ -91,6 +98,11 @@ CREATE TABLE assorts (
                          team            VARCHAR(100),
                          player          VARCHAR(100),
                          customer_label  VARCHAR(50) NOT NULL,
+                         assort_solid    VARCHAR(30),
+                         ratio           VARCHAR(50),
+                         polybag         VARCHAR(20),
+                         carton          VARCHAR(20),
+                         hanger          VARCHAR(300),
                          total_qty       INTEGER DEFAULT 0 NOT NULL,
                          source_file     VARCHAR(300),
                          created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -244,3 +256,22 @@ CREATE TRIGGER trg_po_updated_at
 CREATE TRIGGER trg_techpack_updated_at
     BEFORE UPDATE ON tech_pack_files
     FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- ============================================================
+-- 마이그레이션: PO/ASSORT 대사 고도화 (고객사 패킹정보 마스터 + ASSORT 패킹정보 컬럼)
+-- 이미 배포된 DB(예: Railway)에는 위 CREATE TABLE이 다시 실행되지 않으므로,
+-- 기존 customers/assorts 테이블에는 아래 ALTER TABLE을 별도로 실행해야 한다.
+-- ============================================================
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS packing_method VARCHAR(60);
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS format         VARCHAR(100);
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS assort_solid   VARCHAR(30);
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS std_ratio      VARCHAR(50);
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS std_polybag    VARCHAR(20);
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS std_carton     VARCHAR(20);
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS std_hanger     VARCHAR(300);
+
+ALTER TABLE assorts ADD COLUMN IF NOT EXISTS assort_solid VARCHAR(30);
+ALTER TABLE assorts ADD COLUMN IF NOT EXISTS ratio        VARCHAR(50);
+ALTER TABLE assorts ADD COLUMN IF NOT EXISTS polybag      VARCHAR(20);
+ALTER TABLE assorts ADD COLUMN IF NOT EXISTS carton       VARCHAR(20);
+ALTER TABLE assorts ADD COLUMN IF NOT EXISTS hanger       VARCHAR(300);

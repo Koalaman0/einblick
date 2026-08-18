@@ -33,6 +33,10 @@ public class CustomerController {
             .name(request.name())
             .houseAlias(request.houseAlias() != null ? request.houseAlias() : false)
             .build();
+        customer.updatePackingStandard(
+            request.packingMethod(), request.format(), request.assortSolid(),
+            request.stdRatio(), request.stdPolybag(), request.stdCarton(), request.stdHanger()
+        );
         return ResponseEntity.status(HttpStatus.CREATED).body(CustomerResponse.from(customerRepository.save(customer)));
     }
 }

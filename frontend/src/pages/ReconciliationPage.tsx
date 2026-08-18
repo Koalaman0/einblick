@@ -16,6 +16,7 @@ interface ReconciliationResultDto {
   diffQty: number;
   status: string;
   houseMatched: boolean;
+  note: string | null;
 }
 
 const STATUS_META: Record<string, { label: string; badge: string }> = {
@@ -167,6 +168,11 @@ export function ReconciliationPage() {
                       <div className={cn("text-[11px] mt-0.5", r.status === "QTY_MISMATCH" ? "text-red-600" : "text-amber-600")}>
                         {r.styleCode} · {lineLabel(r)}: PO {r.poQty ?? "-"}개 → ASSORT {r.assortQty ?? "-"}개
                       </div>
+                      {r.note && (
+                        <div className="text-[11px] mt-1 text-[#64748B] bg-white/60 rounded px-2 py-1 border border-amber-100">
+                          {r.note}
+                        </div>
+                      )}
                     </div>
                     <button className="text-[11px] text-[#2563EB] hover:underline shrink-0">처리</button>
                   </div>

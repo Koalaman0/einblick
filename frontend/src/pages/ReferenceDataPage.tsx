@@ -4,7 +4,11 @@ import { apiFetch } from "@/lib/apiConfig";
 import { cn } from "@/lib/utils";
 
 interface ProgramDto { id: number; brand: string; league: string | null; styleCode: string; styleName: string | null; season: string | null }
-interface CustomerDto { id: number; code: string; name: string; houseAlias: boolean }
+interface CustomerDto {
+  id: number; code: string; name: string; houseAlias: boolean;
+  packingMethod: string | null; format: string | null; assortSolid: string | null;
+  stdRatio: string | null; stdPolybag: string | null; stdCarton: string | null; stdHanger: string | null;
+}
 interface VendorDto { id: number; name: string; overseas: boolean; contactName: string | null; contactInfo: string | null }
 interface ShippingRuleDto {
   id: number; styleCode: string; brand: string; season: string | null;
@@ -32,7 +36,10 @@ export function ReferenceDataPage() {
   const [submitting, setSubmitting] = useState(false);
 
   const [programForm, setProgramForm] = useState({ brand: "", league: "", styleCode: "", styleName: "", season: "" });
-  const [customerForm, setCustomerForm] = useState({ code: "", name: "", houseAlias: false });
+  const [customerForm, setCustomerForm] = useState({
+    code: "", name: "", houseAlias: false,
+    packingMethod: "", format: "", assortSolid: "", stdRatio: "", stdPolybag: "", stdCarton: "", stdHanger: "",
+  });
   const [vendorForm, setVendorForm] = useState({ name: "", overseas: false, contactName: "", contactInfo: "" });
   const [ruleForm, setRuleForm] = useState({ programId: "", season: "", poRangeFrom: "", poRangeTo: "", transportMethod: "AIR_ONLY", exFactoryDate: "" });
 
@@ -54,7 +61,10 @@ export function ReferenceDataPage() {
 
   const resetForms = () => {
     setProgramForm({ brand: "", league: "", styleCode: "", styleName: "", season: "" });
-    setCustomerForm({ code: "", name: "", houseAlias: false });
+    setCustomerForm({
+      code: "", name: "", houseAlias: false,
+      packingMethod: "", format: "", assortSolid: "", stdRatio: "", stdPolybag: "", stdCarton: "", stdHanger: "",
+    });
     setVendorForm({ name: "", overseas: false, contactName: "", contactInfo: "" });
     setRuleForm({ programId: "", season: "", poRangeFrom: "", poRangeTo: "", transportMethod: "AIR_ONLY", exFactoryDate: "" });
   };
@@ -71,7 +81,17 @@ export function ReferenceDataPage() {
         });
       } else if (tab === "customer") {
         res = await apiFetch("/api/customers", {
-          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(customerForm),
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...customerForm,
+            packingMethod: customerForm.packingMethod || null,
+            format: customerForm.format || null,
+            assortSolid: customerForm.assortSolid || null,
+            stdRatio: customerForm.stdRatio || null,
+            stdPolybag: customerForm.stdPolybag || null,
+            stdCarton: customerForm.stdCarton || null,
+            stdHanger: customerForm.stdHanger || null,
+          }),
         });
       } else if (tab === "vendor") {
         res = await apiFetch("/api/vendors", {
@@ -165,6 +185,20 @@ export function ReferenceDataPage() {
                 <input type="checkbox" checked={customerForm.houseAlias} onChange={(e) => setCustomerForm({ ...customerForm, houseAlias: e.target.checked })} />
                 HOUSE 별칭으로 취급
               </label>
+              <input placeholder="패킹 METHOD (선택, 예: RFID)" value={customerForm.packingMethod} onChange={(e) => setCustomerForm({ ...customerForm, packingMethod: e.target.value })}
+                className="h-9 bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg px-3 text-[12px] focus:outline-none focus:border-[#2563EB]" />
+              <input placeholder="FORMAT (선택)" value={customerForm.format} onChange={(e) => setCustomerForm({ ...customerForm, format: e.target.value })}
+                className="h-9 bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg px-3 text-[12px] focus:outline-none focus:border-[#2563EB]" />
+              <input placeholder="ASSORT/SOLID (선택)" value={customerForm.assortSolid} onChange={(e) => setCustomerForm({ ...customerForm, assortSolid: e.target.value })}
+                className="h-9 bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg px-3 text-[12px] focus:outline-none focus:border-[#2563EB]" />
+              <input placeholder="표준 RATIO (선택, 예: 1:2:2:1)" value={customerForm.stdRatio} onChange={(e) => setCustomerForm({ ...customerForm, stdRatio: e.target.value })}
+                className="h-9 bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg px-3 text-[12px] focus:outline-none focus:border-[#2563EB]" />
+              <input placeholder="표준 POLYBAG (선택)" value={customerForm.stdPolybag} onChange={(e) => setCustomerForm({ ...customerForm, stdPolybag: e.target.value })}
+                className="h-9 bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg px-3 text-[12px] focus:outline-none focus:border-[#2563EB]" />
+              <input placeholder="표준 CARTON (선택)" value={customerForm.stdCarton} onChange={(e) => setCustomerForm({ ...customerForm, stdCarton: e.target.value })}
+                className="h-9 bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg px-3 text-[12px] focus:outline-none focus:border-[#2563EB]" />
+              <input placeholder="표준 HANGER (선택)" value={customerForm.stdHanger} onChange={(e) => setCustomerForm({ ...customerForm, stdHanger: e.target.value })}
+                className="h-9 bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg px-3 text-[12px] focus:outline-none focus:border-[#2563EB]" />
             </div>
           )}
           {tab === "vendor" && (
@@ -242,7 +276,7 @@ export function ReferenceDataPage() {
         <div className="bg-white rounded-xl border border-[#E2E8F0] overflow-hidden">
           <table className="w-full">
             <thead><tr className="border-b border-[#E2E8F0] bg-[#F8FAFC]">
-              {["코드", "거래처명", "HOUSE 별칭"].map((h) => <th key={h} className="text-left px-3.5 py-2.5 text-[11px] font-semibold text-[#64748B]">{h}</th>)}
+              {["코드", "거래처명", "HOUSE 별칭", "METHOD", "ASSORT/SOLID", "RATIO", "POLYBAG", "CARTON", "HANGER"].map((h) => <th key={h} className="text-left px-3.5 py-2.5 text-[11px] font-semibold text-[#64748B] whitespace-nowrap">{h}</th>)}
             </tr></thead>
             <tbody className="divide-y divide-[#F8FAFC]">
               {customers.map((c) => (
@@ -250,9 +284,15 @@ export function ReferenceDataPage() {
                   <td className="px-3.5 py-2.5 text-[12px] font-mono text-[#0F172A]">{c.code}</td>
                   <td className="px-3.5 py-2.5 text-[12px] text-[#64748B]">{c.name}</td>
                   <td className="px-3.5 py-2.5 text-[12px] text-[#64748B]">{c.houseAlias ? "예" : "-"}</td>
+                  <td className="px-3.5 py-2.5 text-[12px] text-[#64748B] whitespace-nowrap">{c.packingMethod ?? "-"}</td>
+                  <td className="px-3.5 py-2.5 text-[12px] text-[#64748B]">{c.assortSolid ?? "-"}</td>
+                  <td className="px-3.5 py-2.5 text-[12px] text-[#64748B]">{c.stdRatio ?? "-"}</td>
+                  <td className="px-3.5 py-2.5 text-[12px] text-[#64748B]">{c.stdPolybag ?? "-"}</td>
+                  <td className="px-3.5 py-2.5 text-[12px] text-[#64748B]">{c.stdCarton ?? "-"}</td>
+                  <td className="px-3.5 py-2.5 text-[12px] text-[#64748B] max-w-[200px] truncate" title={c.stdHanger ?? undefined}>{c.stdHanger ?? "-"}</td>
                 </tr>
               ))}
-              {customers.length === 0 && <tr><td colSpan={3} className="text-center text-[11px] text-[#94A3B8] py-8">등록된 거래처가 없습니다.</td></tr>}
+              {customers.length === 0 && <tr><td colSpan={9} className="text-center text-[11px] text-[#94A3B8] py-8">등록된 거래처가 없습니다.</td></tr>}
             </tbody>
           </table>
         </div>

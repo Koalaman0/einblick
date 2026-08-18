@@ -30,6 +30,11 @@ public class AssortService {
             .player(request.player())
             .customerLabel(request.customerLabel() == null ? "" : request.customerLabel())
             .sourceFile(request.sourceFile())
+            .assortSolid(request.assortSolid())
+            .ratio(request.ratio())
+            .polybag(request.polybag())
+            .carton(request.carton())
+            .hanger(request.hanger())
             .totalQty(totalQty)
             .build();
 

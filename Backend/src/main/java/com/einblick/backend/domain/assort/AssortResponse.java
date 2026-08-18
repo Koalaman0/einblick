@@ -8,6 +8,11 @@ public record AssortResponse(
     String team,
     String player,
     String customerLabel,
+    String assortSolid,
+    String ratio,
+    String polybag,
+    String carton,
+    String hanger,
     int totalQty,
     List<SizeDto> sizes
 ) {
@@ -23,6 +28,11 @@ public record AssortResponse(
             assort.getTeam(),
             assort.getPlayer(),
             assort.getCustomerLabel(),
+            assort.getAssortSolid(),
+            assort.getRatio(),
+            assort.getPolybag(),
+            assort.getCarton(),
+            assort.getHanger(),
             assort.getTotalQty(),
             sizes
         );
