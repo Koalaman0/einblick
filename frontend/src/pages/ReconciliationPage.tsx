@@ -1,5 +1,5 @@
 import { useEffect, useState, type ElementType } from "react";
-import { RefreshCw, CheckCircle, XCircle, AlertTriangle, AlertCircle } from "lucide-react";
+import { RefreshCw, CheckCircle, XCircle, AlertTriangle, AlertCircle, FileDown, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiFetch } from "@/lib/apiConfig";
 
@@ -37,6 +37,8 @@ export function ReconciliationPage() {
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasRun, setHasRun] = useState(false);
+  const [downloadingReport, setDownloadingReport] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
 
   const loadResults = () => {
     setLoading(true);
@@ -74,6 +76,27 @@ export function ReconciliationPage() {
     }
   };
 
+  const handleDownloadReport = async () => {
+    setDownloadingReport(true);
+    setReportError(null);
+    try {
+      const res = await apiFetch("/api/reconciliation/report");
+      if (!res.ok) throw new Error(`보고서 생성에 실패했습니다 (${res.status})`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+      a.download = `PO-ASSORT_대사보고서_${today}.docx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setReportError(err instanceof Error ? err.message : "보고서 다운로드 중 오류가 발생했습니다.");
+    } finally {
+      setDownloadingReport(false);
+    }
+  };
+
   const counts = {
     ok: results.filter((r) => r.status === "OK").length,
     mismatch: results.filter((r) => r.status === "QTY_MISMATCH").length,
@@ -90,15 +113,27 @@ export function ReconciliationPage() {
           <h2 className="text-[15px] font-semibold text-[#0F172A]">PO 자동 대사</h2>
           <p className="text-[11px] text-[#64748B] mt-0.5">PO 데이터와 ASSORT 데이터를 자동으로 비교합니다</p>
         </div>
-        <button onClick={handleRun} disabled={running}
-          className="h-9 px-4 bg-[#2563EB] hover:bg-[#1D4ED8] disabled:bg-blue-300 text-white rounded-lg text-[13px] font-medium flex items-center gap-2 transition-colors">
-          <RefreshCw className={cn("w-4 h-4", running ? "animate-spin" : "")} />
-          {running ? "대사 실행 중..." : "자동 대사 실행"}
-        </button>
+        <div className="flex items-center gap-2">
+          {hasRun && (
+            <button onClick={handleDownloadReport} disabled={downloadingReport}
+              className="h-9 px-4 bg-white border border-[#E2E8F0] hover:bg-[#F8FAFC] disabled:opacity-50 text-[#0F172A] rounded-lg text-[13px] font-medium flex items-center gap-2 transition-colors">
+              {downloadingReport ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
+              보고서 다운로드
+            </button>
+          )}
+          <button onClick={handleRun} disabled={running}
+            className="h-9 px-4 bg-[#2563EB] hover:bg-[#1D4ED8] disabled:bg-blue-300 text-white rounded-lg text-[13px] font-medium flex items-center gap-2 transition-colors">
+            <RefreshCw className={cn("w-4 h-4", running ? "animate-spin" : "")} />
+            {running ? "대사 실행 중..." : "자동 대사 실행"}
+          </button>
+        </div>
       </div>
 
       {error && (
         <div className="text-[12px] text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{error}</div>
+      )}
+      {reportError && (
+        <div className="text-[12px] text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{reportError}</div>
       )}
 
       {!loading && !error && !hasRun && (
