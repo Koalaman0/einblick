@@ -44,7 +44,10 @@ public class SecurityConfig {
                         // 컨테이너에 의해 내부적으로 다시 디스패치되는 경로. JwtAuthenticationFilter는
                         // shouldNotFilterErrorDispatch()가 기본 true라 이 재디스패치에서 재인증을 하지
                         // 않으므로, permitAll이 없으면 원래 의도한 4xx 대신 빈 본문의 403이 내려간다.
-                        .requestMatchers("/api/auth/**", "/actuator/**", "/error").permitAll()
+                        // /ws는 STOMP 핸드셰이크 경로 - 실제 인증은 CONNECT 프레임에서 JWT로
+                        // 검증한다(StompAuthChannelInterceptor). 핸드셰이크 자체는 일반 HTTP
+                        // 요청이라 Authorization 헤더 없이 들어오므로 여기서 막으면 안 된다.
+                        .requestMatchers("/api/auth/**", "/actuator/**", "/error", "/ws/**").permitAll()
                         .requestMatchers("/api/users/**").hasAuthority("ROLE_ADMIN")
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

@@ -15,6 +15,7 @@ import { StickerPackingPage } from "@/pages/StickerPackingPage";
 import { ShippingPage } from "@/pages/ShippingPage";
 import { UserManagementPage } from "@/pages/UserManagementPage";
 import { ReferenceDataPage } from "@/pages/ReferenceDataPage";
+import { ChatPage } from "@/pages/ChatPage";
 import { PlaceholderPage } from "@/pages/PlaceholderPage";
 
 function MainApp() {
@@ -38,6 +39,7 @@ function MainApp() {
             {page === "sticker" && <StickerPackingPage />}
             {page === "shipping" && <ShippingPage />}
             {page === "reference" && <ReferenceDataPage />}
+            {page === "chat" && <ChatPage />}
             {page === "users" && <UserManagementPage />}
             {page === "settings" && <PlaceholderPage title="설정" desc="시스템 환경설정 및 알림 설정을 관리합니다" icon={Settings} />}
           </main>

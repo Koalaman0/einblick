@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   LayoutDashboard, FileText, Layers, Package2, ShoppingCart,
   ArrowLeftRight, Tag, Truck, Database, Users, Settings, LogOut, Zap,
+  MessageCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Page } from "@/types";
@@ -18,6 +19,7 @@ export const menuItems = [
   { id: "sticker", label: "스티커 · 패킹 관리", icon: Tag, adminOnly: false },
   { id: "shipping", label: "출고 관리", icon: Truck, adminOnly: false },
   { id: "reference", label: "기준정보 관리", icon: Database, adminOnly: false },
+  { id: "chat", label: "메신저", icon: MessageCircle, adminOnly: false },
   { id: "users", label: "사용자 관리", icon: Users, adminOnly: true },
   { id: "settings", label: "설정", icon: Settings, adminOnly: false },
 ];

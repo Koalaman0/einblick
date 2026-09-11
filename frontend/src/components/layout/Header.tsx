@@ -7,7 +7,7 @@ export const breadcrumbMap: Record<Page, string> = {
   dashboard: "대시보드", po: "PO 관리", techpack: "TECH PACK / ARTWORK 관리",
   sample: "샘플 관리", material: "자재 발주 관리", reconciliation: "PO 자동 대사",
   sticker: "스티커 · 패킹 관리", shipping: "출고 관리", reference: "기준정보 관리",
-  users: "사용자 관리", settings: "설정",
+  chat: "메신저", users: "사용자 관리", settings: "설정",
 };
 
 export function Header({ page, dark, onToggleDark, notifOpen, onToggleNotif }: {
